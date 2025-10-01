@@ -1,5 +1,3 @@
-const prisma = require("../database");
-
 require("dotenv").config();
 
 async function checkTokenAdmin(request, reply) {
