@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum CustomerStatus {
+  approved
+  blocked
+}
+
+model Customer {
+  id String @id @default(uuid())
+
+  name   String         @unique @db.VarChar(255)
+  token  String         @db.VarChar(255)
+  status CustomerStatus @default(blocked)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("customers")
+}
+
+model EmailNotifications {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  email_to    String @db.VarChar(255)
+  email_title String @db.VarChar(255)
+  status      Json
+
+  email_header_title   String @db.LongText
+  email_content        String @db.LongText
+  email_footer_content String @db.LongText
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("email_notifications")
+}
+
+model SmsNotifications {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  number  String @db.VarChar(255)
+  message String @db.LongText
+  status  Json
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("sms_notifications")
+}
+
+model WhatsappNotifications {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  number               String @db.VarChar(255)
+  zapi_client_instance String
+  message              String @db.LongText
+  status               Json
+  received             Json
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("whatsapp_notifications")
+}
+
+model SmtpOptionsForCustomers {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  mail_from_address String @db.VarChar(255)
+  mail_from_name    String @db.VarChar(255)
+  smtp_host         String @db.VarChar(255)
+  smtp_pass         String @db.VarChar(255)
+  smtp_port         Int
+
+  smtp_user String @db.LongText
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("smtp_options_for_customers")
+}
+
+model SmsOptionsForCustomers {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  nvoip_api_key String @db.VarChar(255)
+  nvoip_api_url String @db.VarChar(255)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("sms_options_for_customers")
+}
+
+model WhatsappOptionsForCustomers {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  zapi_client_token    String @db.VarChar(255)
+  zapi_client_instance String @db.VarChar(255)
+  zapi_client_url      String @db.VarChar(255)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("whatsapp_options_for_customers")
+}
