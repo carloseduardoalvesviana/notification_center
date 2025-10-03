@@ -4,8 +4,7 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "db:deploy": "npx prisma migrate deploy && npx prisma generate"
+    "dev": "node --watch src/server.js"
   },
   "keywords": [],
   "author": "",
