@@ -1,6 +1,5 @@
-require("dotenv").config();
-
 const prisma = require("../database");
+const { env } = require("../env");
 
 async function zApiWebHook(server) {
   server.post("/webhook-received", async (req, res) => {
@@ -28,7 +27,7 @@ async function zApiWebHook(server) {
     }
 
     try {
-      await fetch(process.env.URL_NOTIFICATION, {
+      await fetch(env.URL_NOTIFICATION, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

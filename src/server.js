@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const fastify = require("fastify");
 const rateLimit = require("@fastify/rate-limit");
 const emailRoutes = require("./routes/email");
@@ -7,6 +5,7 @@ const customersRoutes = require("./routes/customers");
 const smsRoutes = require("./routes/sms");
 const whatsappRoutes = require("./routes/whatsapp");
 const zApiWebHook = require("./routes/z-api-web-hook");
+const { env } = require("./env");
 
 const server = fastify({ logger: true });
 
@@ -40,7 +39,7 @@ server.register(smsRoutes);
 server.register(whatsappRoutes);
 server.register(zApiWebHook);
 
-const port = process.env.PORT || 3000;
+const port = env.PORT || 3000;
 const host = "0.0.0.0"; // 👈 necessário no Docker
 
 server.listen({ port, host }, (err, address) => {

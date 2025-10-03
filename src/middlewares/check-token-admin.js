@@ -1,4 +1,4 @@
-require("dotenv").config();
+const { env } = require("../env");
 
 async function checkTokenAdmin(request, reply) {
   try {
@@ -9,7 +9,7 @@ async function checkTokenAdmin(request, reply) {
 
     const token = authHeader.split(" ")[1];
 
-    const tokenAdmin = process.env.ADMIN_TOKEN || null;
+    const tokenAdmin = env.ADMIN_TOKEN || null;
 
     if (token != tokenAdmin) {
       return reply.status(404).send({

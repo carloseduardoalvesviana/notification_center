@@ -1,14 +1,14 @@
-require("dotenv").config();
 const axios = require("axios");
 const Queue = require("bull");
 const prisma = require("../database");
+const { env } = require("../env");
 
 const smsQueue = new Queue("sms-queue", {
   redis: {
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT),
-    password: process.env.REDIS_PASSWORD,
-    username: process.env.REDIS_USERNAME,
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
+    username: env.REDIS_USERNAME,
   },
 });
 

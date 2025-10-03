@@ -1,17 +1,17 @@
-require("dotenv").config();
 const Queue = require("bull");
 const nodemailer = require("nodemailer");
 const path = require("path");
 const juice = require("juice");
 const { readFile } = require("fs/promises");
 const prisma = require("../database");
+const { env } = require("../env");
 
 const emailQueue = new Queue("email-queue", {
   redis: {
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT),
-    password: process.env.REDIS_PASSWORD,
-    username: process.env.REDIS_USERNAME,
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
+    username: env.REDIS_USERNAME,
   },
 });
 
