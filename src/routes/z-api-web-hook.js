@@ -13,6 +13,12 @@ async function zApiWebHook(server) {
       }
     })
 
+    const customerToken = await prisma.customer.findFirst({
+      where: {
+        id: client.customer_id
+      }
+    })
+
     const record = await prisma.whatsappNotifications.findFirst({
       where: {
         number: `+${phone}`,
@@ -36,6 +42,7 @@ async function zApiWebHook(server) {
 
     let dataForMobilize = {
       ...client,
+      customer_token: customerToken?.token,
       ...req.body
     }
 
