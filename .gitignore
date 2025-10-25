@@ -4,3 +4,4 @@ node_modules
 req.http
 
 /generated/prisma
+.DS_Store
