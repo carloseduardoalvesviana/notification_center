@@ -8,9 +8,9 @@ const whatsappRoutes = require("./routes/whatsapp");
 const zApiWebHook = require("./routes/z-api-web-hook");
 const { env } = require("./env");
 
-const { createBullBoard } = require("@bull-board/api");
-const { BullAdapter } = require("@bull-board/api/bullAdapter");
-const { FastifyAdapter } = require("@bull-board/fastify");
+const { createBullBoard } = require('@bull-board/api')
+const { BullAdapter } = require('@bull-board/api/bullAdapter')
+const { FastifyAdapter } = require('@bull-board/fastify');
 
 const emailQueue = require("./queues/emailQueue");
 const smsQueue = require("./queues/smsQueue");
@@ -30,10 +30,9 @@ createBullBoard({
   serverAdapter,
 });
 
-serverAdapter.setBasePath("/admin/queues");
+serverAdapter.setBasePath('/ui');
+server.register(serverAdapter.registerPlugin(), { prefix: '/ui' });
 
-// ✅ Aqui está o detalhe importante:
-server.register(serverAdapter.plugin, { prefix: "/admin/queues" });
 
 /* ----------------------------- Rate Limit ----------------------------- */
 server.register(rateLimit, {
