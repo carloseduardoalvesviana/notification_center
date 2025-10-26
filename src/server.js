@@ -9,7 +9,7 @@ const zApiWebHook = require("./routes/z-api-web-hook");
 const { env } = require("./env");
 
 const { createBullBoard } = require("@bull-board/api");
-const { BullMQAdapter } = require("@bull-board/api/bullMQAdapter");
+const { BullAdapter } = require("@bull-board/api/bullAdapter"); // ✅ usa BullAdapter (não BullMQAdapter)
 const { FastifyAdapter } = require("@bull-board/fastify");
 
 const emailQueue = require("./queues/emailQueue");
@@ -18,22 +18,22 @@ const whatsappQueue = require("./queues/whatsappQueue");
 
 const server = fastify({ logger: true });
 
-// --- Bull Board ---
+/* ----------------------------- Bull Board ----------------------------- */
 const serverAdapter = new FastifyAdapter();
 serverAdapter.setBasePath("/admin/queues");
 
 createBullBoard({
   queues: [
-    new BullMQAdapter(emailQueue),
-    new BullMQAdapter(smsQueue),
-    new BullMQAdapter(whatsappQueue),
+    new BullAdapter(emailQueue),
+    new BullAdapter(smsQueue),
+    new BullAdapter(whatsappQueue),
   ],
   serverAdapter,
 });
 
 server.register(serverAdapter.registerPlugin, { prefix: "/admin/queues" });
 
-// --- Rate Limit ---
+/* ----------------------------- Rate Limit ----------------------------- */
 server.register(rateLimit, {
   max: 100,
   timeWindow: "1 minute",
@@ -46,15 +46,16 @@ server.register(rateLimit, {
   }),
 });
 
-// --- Rotas da API ---
+/* ----------------------------- Rotas da API ----------------------------- */
 server.get("/", (req, reply) => reply.status(200).send({ message: "API running 🚀" }));
+
 server.register(customersRoutes);
 server.register(emailRoutes);
 server.register(smsRoutes);
 server.register(whatsappRoutes);
 server.register(zApiWebHook);
 
-// --- Inicialização ---
+/* ----------------------------- Inicialização ----------------------------- */
 const port = env.PORT || 3000;
 const host = "0.0.0.0"; // necessário no Docker
 
