@@ -9,7 +9,7 @@ const zApiWebHook = require("./routes/z-api-web-hook");
 const { env } = require("./env");
 
 const { createBullBoard } = require("@bull-board/api");
-const { BullAdapter } = require("@bull-board/api/bullAdapter"); // ✅ usa BullAdapter (não BullMQAdapter)
+const { BullAdapter } = require("@bull-board/api/bullAdapter");
 const { FastifyAdapter } = require("@bull-board/fastify");
 
 const emailQueue = require("./queues/emailQueue");
@@ -20,7 +20,6 @@ const server = fastify({ logger: true });
 
 /* ----------------------------- Bull Board ----------------------------- */
 const serverAdapter = new FastifyAdapter();
-serverAdapter.setBasePath("/admin/queues");
 
 createBullBoard({
   queues: [
@@ -31,7 +30,10 @@ createBullBoard({
   serverAdapter,
 });
 
-server.register(serverAdapter.registerPlugin, { prefix: "/admin/queues" });
+serverAdapter.setBasePath("/admin/queues");
+
+// ✅ Aqui está o detalhe importante:
+server.register(serverAdapter.plugin, { prefix: "/admin/queues" });
 
 /* ----------------------------- Rate Limit ----------------------------- */
 server.register(rateLimit, {
@@ -48,7 +50,6 @@ server.register(rateLimit, {
 
 /* ----------------------------- Rotas da API ----------------------------- */
 server.get("/", (req, reply) => reply.status(200).send({ message: "API running 🚀" }));
-
 server.register(customersRoutes);
 server.register(emailRoutes);
 server.register(smsRoutes);
