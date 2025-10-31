@@ -20,6 +20,7 @@ const whatsappBodySchema = z.object({
     .regex(/^\d{8,9}$/, "Phone number must be 8 or 9 digits (e.g., 994873708)"),
   message: z.string().nonempty("Message is required"),
   image: z.string().optional(), // torna o campo opcional
+  sendAt: z.string().optional(), // torna o campo opcional
 });
 
 async function whatsappRoutes(server) {
