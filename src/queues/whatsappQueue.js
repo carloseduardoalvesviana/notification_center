@@ -17,7 +17,7 @@ function limparNumero(telefone) {
 }
 
 whatsappQueue.process(async (job, done) => {
-  const { id, number, customer_id, message, url, zapi_client_token } = job.data;
+  const { id, number, customer_id, message, url, zapi_client_token} = job.data;
 
   try {
     const smsData = {
