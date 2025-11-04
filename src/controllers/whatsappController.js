@@ -39,9 +39,14 @@ async function store(request, reply) {
   };
 
   // --- calcula o delay em milissegundos ---
-  const delay = sendAt
-    ? Math.max(new Date(sendAt).getTime() - Date.now(), 0)
-    : 0;
+  let delay = 0;
+
+  if (sendAt) {
+    delay = Math.max(new Date(sendAt).getTime() - Date.now(), 0);
+  } else {
+    // gera um atraso aleatório entre 1 e 5 segundos (1000ms a 5000ms)
+    delay = Math.floor(Math.random() * 4000) + 1000;
+  }
 
   // --- adiciona o job à fila com delay ---
   await whatsappQueue.add(dataWhatsapp, { delay });
