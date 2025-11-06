@@ -17,6 +17,15 @@ async function store(request, reply) {
       .send({ message: "Whatsapp configuration not provided" });
   }
 
+  // --- converte o sendAt recebido (ex: "2025-01-17 10:47:23") em objeto Date ---
+  let sentAt = null;
+  if (sendAt) {
+    sentAt = new Date(sendAt.replace(" ", "T")); // converte para ISO, ex: "2025-01-17T10:47:23"
+    if (isNaN(sentAt)) {
+      return reply.status(400).send({ message: "Invalid sendAt format" });
+    }
+  }
+
   const whatsappData = {
     id: crypto.randomUUID(),
     customer_id,
@@ -25,6 +34,7 @@ async function store(request, reply) {
     status: {},
     received: {},
     message,
+    sentAt, // salva a data no registro
   };
 
   const newWhatsappNotification = await prisma.whatsappNotifications.create({
@@ -40,12 +50,10 @@ async function store(request, reply) {
 
   // --- calcula o delay em milissegundos ---
   let delay = 0;
-
-  if (sendAt) {
-    delay = Math.max(new Date(sendAt).getTime() - Date.now(), 0);
+  if (sentAt) {
+    delay = Math.max(sentAt.getTime() - Date.now(), 0);
   } else {
-    // gera um atraso aleatório entre 1 e 5 segundos (1000ms a 5000ms)
-    delay = Math.floor(Math.random() * 4000) + 1000;
+    delay = Math.floor(Math.random() * 4000) + 1000; // 1 a 5 segundos
   }
 
   // --- adiciona o job à fila com delay ---

@@ -19,8 +19,16 @@ const whatsappBodySchema = z.object({
     .nonempty("Phone number is required")
     .regex(/^\d{8,9}$/, "Phone number must be 8 or 9 digits (e.g., 994873708)"),
   message: z.string().nonempty("Message is required"),
-  image: z.string().optional(), // torna o campo opcional
-  sendAt: z.string().optional(), // torna o campo opcional
+  image: z.string().optional(),
+
+  // ✅ validação do formato "YYYY-MM-DD HH:mm:ss"
+  sendAt: z
+    .string()
+    .regex(
+      /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/,
+      "sendAt must be in the format 'YYYY-MM-DD HH:mm:ss' (e.g., 2025-01-17 10:47:23)"
+    )
+    .optional(),
 });
 
 async function whatsappRoutes(server) {
@@ -32,7 +40,7 @@ async function whatsappRoutes(server) {
     if (!result.success) {
       return reply.status(400).send({
         message: "Validation failed",
-        errors: result.error.issues, // formato mais amigável do Zod
+        errors: result.error.issues,
       });
     }
 
