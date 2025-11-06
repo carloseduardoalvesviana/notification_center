@@ -1,14 +1,6 @@
 const { sendEmail } = require("../controllers/emailController");
 const { checkTokenCustomer } = require("../middlewares/check-token-customer");
-const z = require("zod");
-
-const emailSchema = z.object({
-  email_to: z.email(),
-  email_title: z.string().nonempty(),
-  email_header_title: z.string().nonempty(),
-  email_content: z.string().nonempty(),
-  email_footer_content: z.string().nonempty(),
-});
+const { emailSchema } = require("../schemas/zod-schemas");
 
 async function emailRoutes(server) {
   server.addHook("preHandler", checkTokenCustomer);
