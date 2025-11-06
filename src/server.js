@@ -36,7 +36,7 @@ server.register(serverAdapter.registerPlugin(), { prefix: '/ui' });
 
 /* ----------------------------- Rate Limit ----------------------------- */
 server.register(rateLimit, {
-  max: 100,
+  max: 1000,
   timeWindow: "1 minute",
   ban: 5,
   keyGenerator: (req) => req.headers["x-real-ip"] || req.ip,
