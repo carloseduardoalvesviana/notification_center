@@ -33,8 +33,7 @@ async function store(request, reply) {
     number: `${country}${dd}${number.slice(1)}`,
     status: {},
     received: {},
-    message,
-    sentAt, // salva a data no registro
+    message
   };
 
   const newWhatsappNotification = await prisma.whatsappNotifications.create({
