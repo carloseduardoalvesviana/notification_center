@@ -16,7 +16,7 @@ const smsQueue = new Queue("sms-queue", {
       type: "exponential", // tempo dobra a cada falha
       delay: 10000, // começa com 10s
     },
-    removeOnComplete: true,
+    removeOnComplete: false,
     removeOnFail: false,
   },
 });
