@@ -185,6 +185,7 @@ Erros de validação retornam 400 com detalhes de `errors` (issues do Zod).
 - `email-queue`: processa envios de e-mail usando a configuração SMTP do cliente.
 - `sms-queue`: envia SMS via NVoIP.
 - `whatsapp-queue`: envia mensagens via Z-API.
+ - `whatsapp-queue-bulk` (arquivo: `src/queues/whatsappQueueBulk.js`): processa envios em massa (bulk) via Z-API — recebe o payload `{ data: [...] }` e valida o limite de até 500 mensagens por requisição (conforme `whatsappBulkSchema`).
 
 Jobs são processados assincronamente e os resultados ficam persistidos nas tabelas de notificações.
 
