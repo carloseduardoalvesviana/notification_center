@@ -30,6 +30,13 @@ async function store(request, reply) {
     if (isNaN(sentAt.getTime())) {
       return reply.status(400).send({ message: "Invalid sendAt format" });
     }
+
+    // --- se o sendAt estiver no passado, ajusta para agora + 15–90s ---
+    const now = Date.now();
+    if (sentAt.getTime() < now) {
+      const randomDelaySeconds = Math.floor(Math.random() * (90 - 15 + 1)) + 15; // 15–90 s
+      sentAt = new Date(now + randomDelaySeconds * 1000);
+    }
   }
 
   const whatsappData = {

@@ -43,6 +43,11 @@ function getRandomDelay() {
     return Math.floor(Math.random() * (90000 - 40000 + 1)) + 40000;
 }
 
+// Gera delay aleatório entre 15.000 e 90.000 ms (15 a 90 segundos)
+function getDelayForPastSendAt() {
+    return Math.floor(Math.random() * (90000 - 15000 + 1)) + 15000;
+}
+
 // Gera pequeno offset aleatório (10 a 20 segundos) para evitar colisão
 function getSmallJitter() {
     return Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000;
@@ -88,6 +93,12 @@ async function storeBulk(request, reply) {
     for (const [sendAtKey, group] of Object.entries(groupedByTime)) {
         let baseSendAt = sendAtKey !== "immediate" ? parseSendAt(sendAtKey) : null;
 
+        // Se o sendAt estiver no passado → agora + 15 a 90 segundos
+        if (baseSendAt && baseSendAt.getTime() < Date.now()) {
+            const randomDelayMs = getDelayForPastSendAt();
+            baseSendAt = new Date(Date.now() + randomDelayMs);
+        }
+
         // Ajusta o sendAt base se estiver em horário bloqueado
         if (baseSendAt && isBlockedHour(baseSendAt)) {
             baseSendAt = adjustToNextValidTime(baseSendAt);
@@ -108,7 +119,7 @@ async function storeBulk(request, reply) {
                 continue;
             }
 
-            // Gera delay aleatório entre 15 e 40 segundos
+            // Gera delay aleatório entre 40 e 90 segundos
             const randomDelayMs = getRandomDelay();
 
             // Calcula horário candidato
