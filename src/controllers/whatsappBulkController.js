@@ -38,15 +38,14 @@ function parseSendAt(sendAt) {
     }
 }
 
-// Gera delay aleatório entre 15.000 e 40.000 ms (15 a 40 segundos)
+// Gera delay aleatório entre 40.000 e 90.000 ms (40 a 90 segundos)
 function getRandomDelay() {
-    return Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+    return Math.floor(Math.random() * (90000 - 40000 + 1)) + 40000;
 }
 
-// Gera pequeno offset aleatório (1 a 5 segundos) para evitar colisão
+// Gera pequeno offset aleatório (10 a 20 segundos) para evitar colisão
 function getSmallJitter() {
-    // return Math.floor(Math.random() * 4000) + 1000;
-    return Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+    return Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000;
 }
 
 async function storeBulk(request, reply) {
