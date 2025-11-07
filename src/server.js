@@ -52,7 +52,17 @@ server.register(rateLimit, {
 });
 
 /* ----------------------------- Rotas da API ----------------------------- */
-server.get("/", (req, reply) => reply.status(200).send({ message: "API running 🚀" }));
+server.get("/", (req, reply) => {
+  const nowUtc = new Date().toISOString();
+  const nowSaoPaulo = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+  reply.status(200).send({
+    message: "API running 🚀",
+    utc: nowUtc,
+    sao_paulo_time: nowSaoPaulo,
+  });
+});
+
 server.register(customersRoutes);
 server.register(emailRoutes);
 server.register(smsRoutes);
