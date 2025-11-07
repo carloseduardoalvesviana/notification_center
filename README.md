@@ -1,60 +1,69 @@
-# 📬 Central de Notificações - API (SMS, WhatsApp e E-mail)
+# 📬 Central de Notificações
 
-API para envio centralizado de **notificações** (e-mail, SMS e WhatsApp) com suporte a **multi-clientes**.
-Cada cliente possui suas próprias configurações de envio (SMTP, Z-API, NVoIP) e só pode acessar os seus próprios recursos através de **tokens de autenticação**.
-
----
-
-## 🚀 Tecnologias
-
-* [Node.js](https://nodejs.org/)
-* [Fastify](https://fastify.dev/)
-* [Prisma ORM](https://www.prisma.io/)
-* [MySQL](https://www.mysql.com/)
-* [Bull](https://github.com/OptimalBits/bull) (filas com Redis)
-* [Redis](https://redis.io/)
-* [Zod](https://zod.dev/) (validação)
-* [Nodemailer](https://nodemailer.com/) (e-mail)
+API para envio centralizado de notificações (E-mail, SMS e WhatsApp) com suporte a multi-clientes.
+Cada cliente possui configurações próprias (SMTP, NVoIP, Z-API) e autentica por token.
 
 ---
 
-## ⚙️ Configuração do Projeto
+## Tecnologias
 
-### 1. Clonar repositório
+- Node.js
+- Fastify
+- Prisma
+- MySQL
+- Redis + Bull (filas)
+- Zod (validação)
+- Nodemailer (e-mail)
+
+---
+
+## Sumário rápido
+
+- Endpoints protegidos por token (header `Authorization: Bearer <TOKEN>`).
+- Admin usa `ADMIN_TOKEN` para rotas de administração (ex.: criação de clientes).
+- Requisições são validadas com Zod (schemas em `src/schemas/zod-schemas.js`).
+- Envio é feito de forma assíncrona via filas (Bull + Redis).
+
+---
+
+## Instalação e execução
+
+1. Clone o repositório
 
 ```bash
-git clone https://github.com/sua-org/central-notificacoes.git
-cd central-notificacoes
+git clone <repo-url>
+cd central-de-notificacoes
 ```
 
-### 2. Instalar dependências
+2. Instale dependências
 
 ```bash
 npm install
 ```
 
-### 3. Configurar variáveis de ambiente (`.env`)
+3. Variáveis de ambiente
 
-```env
-DATABASE_URL="mysql://user:password@localhost:3306/notifications"
+Crie um arquivo `.env` com as variáveis necessárias. O projeto valida as variáveis com Zod (veja `src/env.js`). Variáveis principais:
 
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_USERNAME=
-REDIS_PASSWORD=
-
-# Admin token para cadastro de clientes
+```
+PORT=3333                # opcional, padrão 3333
 ADMIN_TOKEN=seu_token_admin
+DATABASE_URL=...
+REDIS_HOST=...
+REDIS_PORT=...
+REDIS_USERNAME=...      # opcional
+REDIS_PASSWORD=...      # opcional
+URL_NOTIFICATION=...    # URL para reencaminhar webhooks (usado em z-api-web-hook)
 ```
 
-### 4. Rodar migrations e criar cliente prisma
+4. Prisma (migrations / generate)
 
 ```bash
 npx prisma migrate dev --name init
 npx prisma generate
 ```
 
-### 5. Rodar servidor
+5. Rodar em desenvolvimento
 
 ```bash
 npm run dev
@@ -62,108 +71,54 @@ npm run dev
 
 ---
 
-## 🛠️ Configuração de Clientes
+## Autenticação
 
-Para que os clientes possam enviar notificações, é necessário configurar as opções específicas para cada tipo de notificação (SMS, E-mail e WhatsApp). Essas configurações são armazenadas nas tabelas `sms_options_for_customers`, `smtp_options_for_customers` e `whatsapp_options_for_customers`. Abaixo estão exemplos de inserções com dados fictícios para configurar as opções de um cliente:
+- Admin: usa o `ADMIN_TOKEN` via header `Authorization: Bearer <ADMIN_TOKEN>` para rotas administrativas como `POST /customers`.
+- Cliente: cada cliente cadastrado tem um token (campo `token` na tabela `Customer`) usado no header `Authorization: Bearer <CUSTOMER_TOKEN>`.
 
-### Configuração de SMS (NVoIP)
+Erro de autenticação retorna 401.
 
-```sql
-INSERT INTO `sms_options_for_customers` (`id`, `customer_id`, `nvoip_api_key`, `nvoip_api_url`, `createdAt`, `updatedAt`)
-VALUES
-    ('11111111-2222-3333-4444-555555555555', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'QWxhZGRpbjpPcGVuU2VzYW1l', 'https://api-fake.nvoip.com/v2', '2025-01-01 00:00:00.000', '2025-01-01 00:00:00.000');
+---
+
+## Rotas (principais)
+
+Observação: todas as rotas abaixo esperam o header `Authorization: Bearer <TOKEN>` (exceto quando explicitado diferente).
+
+1) Criar cliente (admin)
+
+POST /customers
+
+Payload:
+
+```json
+{ "name": "Nome do Cliente" }
 ```
 
----
+Validação: `name` obrigatório.
 
-### Configuração de E-mail (SMTP)
+2) Enviar e-mail
 
-```sql
-INSERT INTO `smtp_options_for_customers` (`id`, `customer_id`, `mail_from_address`, `mail_from_name`, `smtp_host`, `smtp_pass`, `smtp_port`, `smtp_user`, `createdAt`, `updatedAt`)
-VALUES
-    ('22222222-3333-4444-5555-666666666666', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'noreply@fake-mail.com', 'Fake Notification', 'smtp.fakehost.com', 'FakePass123!', '587', 'fake_user@fake-tenant.com', '2025-01-01 00:00:00.000', '2025-01-01 00:00:00.000');
-```
+POST /email
 
----
-
-### Configuração de WhatsApp (Z-API)
-
-```sql
-INSERT INTO `whatsapp_options_for_customers` (`id`, `customer_id`, `zapi_client_token`, `zapi_client_instance`, `zapi_client_url`, `createdAt`, `updatedAt`)
-VALUES
-    ('33333333-4444-5555-6666-777777777777', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'FAKE_TOKEN_1234567890', 'FAKEINSTANCE123456', 'https://api.z-api.io/instances/FAKEINSTANCE123456/token/FAKE_TOKEN_123456', '2025-01-01 00:00:00.000', '2025-01-01 00:00:00.000');
-```
-
-**Nota**: Substitua os valores fictícios acima pelos valores reais fornecidos pelo cliente ou pelos serviços correspondentes (NVoIP, SMTP, Z-API).
-
----
-
-## 📦 Estrutura da API
-
-* **Autenticação**
-
-  * Clientes se autenticam via **token único** (`Authorization: Bearer <token>`)
-  * Admin possui token especial para cadastrar novos clientes
-
-* **Filas**
-
-  * E-mails, SMS e WhatsApp são enviados via **Bull** usando Redis
-  * Garantia de processamento assíncrono e reprocessamento em caso de erro
-
-* **Banco de Dados**
-
-  * Tabelas separadas para logs de notificações e configurações por cliente
-
----
-
-## 🔑 Autenticação
-
-* **Admin**: usado para criar clientes (`/customers`)
-* **Cliente**: cada cliente tem um **token único** para acessar rotas de envio
-
-Header esperado:
-
-```http
-Authorization: Bearer <TOKEN>
-```
-
----
-
-## 📌 Rotas
-
-### 👤 Clientes (admin only)
-
-`POST /customers`
-
-Cria novo cliente no sistema.
+Payload (exemplo):
 
 ```json
 {
-  "name": "Cliente XPTO"
+  "email_to": "user@example.com",
+  "email_title": "Assunto",
+  "email_header_title": "Cabeçalho",
+  "email_content": "<p>Conteúdo HTML</p>",
+  "email_footer_content": "<p>Rodapé</p>"
 }
 ```
 
----
+Validação: `email_to` (formato de e-mail), demais campos strings não vazias.
 
-### 📧 Envio de E-mail
+3) Enviar SMS
 
-`POST /email`
+POST /sms
 
-```json
-{
-  "email_to": "user@email.com",
-  "email_title": "<p>Bem-vindo!</p>",
-  "email_header_title": "<p>Seja bem-vindo</p>",
-  "email_content": "<h3>Obrigado por se cadastrar!</h3>",
-  "email_footer_content": "<p>Equipe XPTO</p>"
-}
-```
-
----
-
-### 📱 Envio de SMS
-
-`POST /sms`
+Payload (exemplo):
 
 ```json
 {
@@ -174,53 +129,158 @@ Cria novo cliente no sistema.
 }
 ```
 
----
+Validação: `country` no formato `+NN`, `dd` com 2 dígitos, `number` 8 ou 9 dígitos, `message` com limite de 160 chars.
 
-### 💬 Envio de WhatsApp
+4) Enviar WhatsApp (único)
 
-`POST /whatsapp`
+POST /whatsapp
+
+Payload (exemplo):
 
 ```json
 {
   "country": "+55",
   "dd": "86",
   "number": "994876677",
-  "message": "Olá! Esse é um teste de WhatsApp"
+  "message": "Olá!"
 }
 ```
 
+Validação: mesma validação de phone do SMS. Campo `sendAt` (opcional) aceita formato `YYYY-MM-DD HH:mm:ss`.
+
+5) Enviar WhatsApp (bulk)
+
+POST /whatsapp-bulk
+
+Payload: `{ "data": [ /* array de objetos como /whatsapp */ ] }`
+
+Limite: máximo 500 mensagens por requisição (validado pelo schema `whatsappBulkSchema`).
+
+6) Webhook Z-API (recebimento)
+
+POST /webhook-received
+
+Endpoint interno usado por integrações Z-API para atualizar o status de mensagens recebidas e reencaminhar informações para `URL_NOTIFICATION` (configurada em `.env`).
+
+Este endpoint não exige token de cliente no código atual — ele é utilizado por serviços externos (Z-API).
+
 ---
 
-## 📊 Filas de Processamento
+## Validações (Zod)
 
-* **email-queue** → envia e-mails usando configuração SMTP do cliente
-* **sms-queue** → envia SMS via **NVoIP**
-* **whatsapp-queue** → envia mensagens via **Z-API**
+As validações estão em `src/schemas/zod-schemas.js` e definem formatos e restrições:
 
-Todos os jobs têm **logs salvos no banco** em suas respectivas tabelas (`email_notifications`, `sms_notifications`, `whatsapp_notifications`).
+- `smsBodySchema` — valida `country`, `dd`, `number`, `message` (máx 160 chars).
+- `whatsappBodySchema` — valida campos de telefone, `message` e `sendAt` (formato `YYYY-MM-DD HH:mm:ss`).
+- `whatsappBulkSchema` — array de `whatsappBodySchema`, máximo 500 itens.
+- `emailSchema` — valida campos de e-mail.
+- `customerSchema` — valida criação de clientes.
+
+Erros de validação retornam 400 com detalhes de `errors` (issues do Zod).
 
 ---
 
-## 📂 Estrutura do Projeto
+## Filas e processamento
+
+- `email-queue`: processa envios de e-mail usando a configuração SMTP do cliente.
+- `sms-queue`: envia SMS via NVoIP.
+- `whatsapp-queue`: envia mensagens via Z-API.
+
+Jobs são processados assincronamente e os resultados ficam persistidos nas tabelas de notificações.
+
+---
+
+## Estrutura do projeto
 
 ```
 prisma/                  # Migrations
 src/
- ├── controllers/        # Lógica das rotas
- ├── routes/             # Definições de rotas (Fastify)
- ├── queues/             # Workers Bull (e-mail, SMS, WhatsApp)
- ├── middlewares/        # Autenticação (admin e cliente)
- ├── database.js         # Conexão Prisma
- ├── server.js           # Entry point
-templates/               # Template de e-mails
+ ├─ controllers/         # Lógica de negócio
+ ├─ routes/              # Definição das rotas (Fastify)
+ ├─ queues/              # Workers (Bull)
+ ├─ middlewares/         # Autenticação (admin/cliente)
+ ├─ schemas/             # Zod schemas
+ ├─ database.js          # Prisma client
+ ├─ env.js               # Validação das vars de ambiente
+ └─ server.js            # Entry point
+templates/               # Templates de e-mail
 ```
 
 ---
 
-## 🗄️ Modelos (Prisma)
+## Testes rápidos com cURL
 
-* **Customer** → Clientes (com `token`)
-* **EmailNotifications**, **SmsNotifications**, **WhatsappNotifications** → histórico de notificações
-* **SmtpOptionsForCustomers**, **SmsOptionsForCustomers**, **WhatsappOptionsForCustomers** → configs por cliente
+Observação: o server usa a variável `PORT` (padrão no `env.js` é 3333). Os exemplos abaixo usam `http://localhost:3000` pois seguem o formato que você enviou — ajuste a porta conforme seu `.env`.
+
+### Send SMS
+POST http://localhost:3000/sms
+Content-Type: application/json
+Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+
+```json
+{
+  "country": "+55",
+  "dd": "86",
+  "number": "999999999",
+  "message": "Teste SMS nova central de notificações"
+}
+```
+
+### Send Whatsapp
+POST http://localhost:3000/whatsapp
+Content-Type: application/json
+Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+
+```json
+{
+  "country": "+55",
+  "dd": "86",
+  "number": "999999999",
+  "message": "🌟 Oi, Fulano! Que alegria ter você conosco. 🙏💙 Dr. Vinícius quer compartilhar sua jornada. 1- Sim, autorizo  2- Não",
+  "sendAt": "2025-11-07 10:25:23"
+}
+```
+
+### Send Email
+POST http://localhost:3000/email
+Content-Type: application/json
+Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+
+```json
+{
+  "email_to": "usuario@gmai.com",
+  "email_title": "Bem-vindo à nossa plataforma!",
+  "email_header_title": "<div style=\"background: linear-gradient(to right, #1a73e8, #4f46e5); padding: 30px 20px; text-align: center; font-family: Arial, Helvetica, sans-serif; border-bottom: 3px solid #facc15;\"><h2 style=\"font-size: 28px; color: #ffffff; margin: 0; line-height: 1.2; font-weight: bold; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);\">Inscrição 360</h2></div>",
+  "email_content": "<div style=\"padding: 30px 20px; text-align: center; font-family: Arial, Helvetica, sans-serif; background-color: #f9fafb; border-radius: 6px; margin: 10px;\"><h3 style=\"font-size: 22px; color: #1f2937; margin: 0 0 15px 0; line-height: 1.3; font-weight: 600;\">Bem-vindo, <a href=\"mailto:usuario@gmaill.com\" style=\"color: #1a73e8; text-decoration: none; font-weight: 500;\">usuario@gmaill.com!</a></h3><p style=\"font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 20px 0;\">Estamos entusiasmados por tê-lo conosco! Acesse nossa plataforma para explorar ferramentas e recursos que vão impulsionar seu crescimento e aprendizado.</p><a href=\"https://inscricao360.com.br\" style=\"display: inline-block; padding: 14px 30px; background: linear-gradient(to bottom, #1a73e8, #2563eb); color: #ffffff; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); transition: background 0.3s ease;\">Acessar Plataforma</a></div>",
+  "email_footer_content": "<div style=\"text-align: center; font-size: 13px; color: #6b7280; line-height: 1.5; font-family: Arial, Helvetica, sans-serif; padding: 20px; background-color: #f3f4f6;\"><p style=\"margin: 0;\">© 2025 <a href=\"https://inscricao360.com.br\" style=\"color: #1a73e8; text-decoration: none;\">inscricao360.com.br</a>. Todos os direitos reservados.</p><p style=\"margin: 5px 0 0 0;\">Se você não se cadastrou, por favor, ignore este e-mail.</p></div>"
+}
+```
+
+### Send Whatsapp Bulk
+POST http://localhost:3000/whatsapp-bulk
+Content-Type: application/json
+Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+
+```json
+{
+  "data": [
+    {
+      "country": "+55",
+      "dd": "86",
+      "number": "999999999",
+      "message": "🌟 Oi, Fulano! ",
+      "sendAt": "2025-11-07 10:40:23"
+    },
+    {
+      "country": "+55",
+      "dd": "86",
+      "number": "999999999",
+      "message": "🌟 Oi, Fulano! ",
+      "sendAt": "2025-11-07 10:40:23"
+    }
+    /* ... até 500 objetos */
+  ]
+}
+```
 
 ---
