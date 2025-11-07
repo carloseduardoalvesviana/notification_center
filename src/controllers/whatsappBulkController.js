@@ -16,16 +16,16 @@ function isBlockedHour(date) {
     );
 }
 
-// Avança até o próximo horário permitido
+// Avança até o próximo horário permitido (pula em blocos de 15 min)
 function adjustToNextValidTime(date) {
     let adjusted = new Date(date);
     while (isBlockedHour(adjusted)) {
-        adjusted.setMinutes(adjusted.getMinutes() + 15); // pula em blocos de 15 min
+        adjusted.setMinutes(adjusted.getMinutes() + 15);
     }
     return adjusted;
 }
 
-// Converte string tipo "2025-01-17 10:47:23" para Date
+// Converte string "2025-01-17 10:47:23" para Date
 function parseSendAt(sendAt) {
     if (!sendAt) return null;
     try {
@@ -36,6 +36,17 @@ function parseSendAt(sendAt) {
     } catch {
         return null;
     }
+}
+
+// Gera delay aleatório entre 15.000 e 40.000 ms (15 a 40 segundos)
+function getRandomDelay() {
+    return Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+}
+
+// Gera pequeno offset aleatório (1 a 5 segundos) para evitar colisão
+function getSmallJitter() {
+    // return Math.floor(Math.random() * 4000) + 1000;
+    return Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
 }
 
 async function storeBulk(request, reply) {
@@ -75,17 +86,15 @@ async function storeBulk(request, reply) {
         groupedByTime[key].push(item);
     }
 
-    const FIXED_DELAY = 40000; // 40 segundos fixos
-
     for (const [sendAtKey, group] of Object.entries(groupedByTime)) {
         let baseSendAt = sendAtKey !== "immediate" ? parseSendAt(sendAtKey) : null;
 
-        // Ajusta o sendAt se estiver em horário bloqueado
+        // Ajusta o sendAt base se estiver em horário bloqueado
         if (baseSendAt && isBlockedHour(baseSendAt)) {
             baseSendAt = adjustToNextValidTime(baseSendAt);
         }
 
-        // Hora base de envio (agora ou sendAt ajustado)
+        // Define o horário inicial: sendAt ajustado ou agora
         let nextSendTime = baseSendAt ? new Date(baseSendAt) : new Date();
 
         for (const item of group) {
@@ -100,13 +109,23 @@ async function storeBulk(request, reply) {
                 continue;
             }
 
-            // Se o próximo horário cair em período bloqueado, pula pro horário permitido
-            if (isBlockedHour(nextSendTime)) {
-                nextSendTime = adjustToNextValidTime(nextSendTime);
+            // Gera delay aleatório entre 15 e 40 segundos
+            const randomDelayMs = getRandomDelay();
+
+            // Calcula horário candidato
+            let candidateSendTime = new Date(nextSendTime.getTime() + randomDelayMs);
+
+            // Ajusta se cair em horário bloqueado
+            if (isBlockedHour(candidateSendTime)) {
+                candidateSendTime = adjustToNextValidTime(candidateSendTime);
+                // Adiciona jitter pequeno para evitar colisão
+                candidateSendTime = new Date(candidateSendTime.getTime() + getSmallJitter());
             }
 
+            // Garante que o envio não seja no passado
             const now = Date.now();
-            const delay = Math.max(nextSendTime.getTime() - now, 0);
+            const finalSendTime = new Date(Math.max(candidateSendTime.getTime(), now));
+            const delay = finalSendTime.getTime() - now;
 
             const whatsappData = {
                 id: crypto.randomUUID(),
@@ -129,19 +148,20 @@ async function storeBulk(request, reply) {
                     zapi_client_token: whatsappOptionConfiguration.zapi_client_token,
                 };
 
-                // Enfileira com o delay calculado
+                // Enfileira com delay calculado
                 await whatsappQueueBulk.add(dataWhatsapp, { delay });
 
                 results.push({
                     id: newWhatsappNotification.id,
                     number: whatsappData.number,
                     status: "queued",
-                    sendAt: nextSendTime.toISOString(),
+                    sendAt: finalSendTime.toISOString(),
                     delay,
                 });
 
-                // Avança 40 segundos para a próxima mensagem
-                nextSendTime = new Date(nextSendTime.getTime() + FIXED_DELAY);
+                // Atualiza nextSendTime com base no envio atual + 1s (evita loop)
+                nextSendTime = new Date(finalSendTime.getTime() + 1000);
+
             } catch (error) {
                 results.push({
                     item,
