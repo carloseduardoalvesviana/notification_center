@@ -189,6 +189,8 @@ Erros de validação retornam 400 com detalhes de `errors` (issues do Zod).
 
 Jobs são processados assincronamente e os resultados ficam persistidos nas tabelas de notificações.
 
+Adicionalmente, a aplicação expõe um dashboard web para gerenciamento das filas (Bull UI) disponível em `/ui`. Pelo dashboard é possível visualizar jobs (waiting, active, failed, completed), reprocessar, remover e acompanhar progresso dos jobs em tempo real.
+
 ---
 
 ## Estrutura do projeto
