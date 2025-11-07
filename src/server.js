@@ -1,3 +1,5 @@
+process.env.TZ = "America/Sao_Paulo";
+
 const fastify = require("fastify");
 const rateLimit = require("@fastify/rate-limit");
 
