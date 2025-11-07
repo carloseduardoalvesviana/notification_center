@@ -10,11 +10,45 @@ const smsQueue = new Queue("sms-queue", {
     password: env.REDIS_PASSWORD,
     username: env.REDIS_USERNAME,
   },
+  defaultJobOptions: {
+    attempts: 3, // ✅ tenta até 3 vezes se der erro
+    backoff: {
+      type: "exponential", // tempo dobra a cada falha
+      delay: 10000, // começa com 10s
+    },
+    removeOnComplete: true,
+    removeOnFail: false,
+  },
 });
 
-smsQueue.process(async (job, done) => {
+// ✅ Helper para atualizar o status da notificação
+async function atualizarStatus(id, data) {
   try {
-    const { id, number, customer_id, message } = job.data;
+    await prisma.smsNotifications.update({
+      where: { id },
+      data: { status: data },
+    });
+  } catch (err) {
+    console.error("⚠️ Falha ao atualizar status SMS:", err.message);
+  }
+}
+
+// ✅ Processamento principal da fila
+smsQueue.process(async (job) => {
+  const { id, number, customer_id, message } = job.data;
+  const attempt = job.attemptsMade + 1;
+
+  try {
+    console.log(`📤 Enviando SMS [${id}] para ${number} (tentativa ${attempt})`);
+
+    // Buscar configuração de SMS do cliente
+    const smsConfig = await prisma.smsOptionsForCustomers.findFirst({
+      where: { customer_id },
+    });
+
+    if (!smsConfig) {
+      throw new Error(`SMS configuration not found for customer ${customer_id}`);
+    }
 
     const smsData = {
       numberPhone: number,
@@ -22,40 +56,40 @@ smsQueue.process(async (job, done) => {
       flashSms: false,
     };
 
-    const smsConfig = await prisma.smsOptionsForCustomers.findFirst({
-      where: { customer_id },
-    });
-
-    if (!smsConfig) {
-      return done(new Error(`SMS not configured for customer: ${customer_id}`));
-    }
-
     const url = `${smsConfig.nvoip_api_url}/sms?napikey=${smsConfig.nvoip_api_key}`;
 
-    const response = await axios.post(url, smsData, {
+    console.log(url)
+
+    const config = {
       headers: { "Content-Type": "application/json" },
+      timeout: 15000, // ✅ evita travamento da fila
+    };
+
+    const response = await axios.post(url, smsData, config);
+
+    await atualizarStatus(id, {
+      status: "sent",
+      response: response.data,
+      sentAt: new Date(),
     });
 
-    await prisma.smsNotifications.update({
-      where: { id },
-      data: {
-        status: response.data,
-      },
-    });
+    console.log(`✅ SMS enviado com sucesso para ${number}`);
+    job.progress(100);
 
-    return done();
+    return Promise.resolve();
   } catch (error) {
-    console.error("Failed to send SMS:", error.message);
+    console.error(`❌ Falha ao enviar SMS [${id}] (tentativa ${attempt}):`, error.message);
 
-    // Atualiza status como erro
-    await prisma.smsNotifications.update({
-      where: { id },
-      data: {
-        status: { message: error.message },
-      },
-    });
+    const errorData = {
+      status: attempt < 3 ? "retrying" : "error",
+      error: error.response?.data || error.message,
+      updatedAt: new Date(),
+    };
 
-    return done(error);
+    await atualizarStatus(id, errorData);
+
+    // Lança erro para que o Bull tente novamente se aplicável
+    throw error;
   }
 });
 

@@ -13,6 +13,7 @@ async function store(request, reply) {
     message,
     status: {},
   };
+
   const newCustomer = await prisma.smsNotifications.create({
     data: smsData,
   });

@@ -15,6 +15,7 @@ const { FastifyAdapter } = require('@bull-board/fastify');
 const emailQueue = require("./queues/emailQueue");
 const smsQueue = require("./queues/smsQueue");
 const whatsappQueue = require("./queues/whatsappQueue");
+const whatsappQueueBulk = require("./queues/whatsappQueueBulk");
 
 const server = fastify({ logger: true });
 
@@ -26,6 +27,7 @@ createBullBoard({
     new BullAdapter(emailQueue),
     new BullAdapter(smsQueue),
     new BullAdapter(whatsappQueue),
+    new BullAdapter(whatsappQueueBulk)
   ],
   serverAdapter,
 });
