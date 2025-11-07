@@ -1,3 +1,5 @@
+process.env.TZ = "America/Sao_Paulo";
+
 const axios = require("axios");
 const Queue = require("bull");
 const prisma = require("../database");

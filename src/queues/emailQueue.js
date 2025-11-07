@@ -1,3 +1,5 @@
+process.env.TZ = "America/Sao_Paulo";
+
 const Queue = require("bull");
 const nodemailer = require("nodemailer");
 const path = require("path");
