@@ -2,14 +2,13 @@ const prisma = require("../database");
 const crypto = require("crypto");
 const whatsappQueueBulk = require("../queues/whatsappQueueBulk");
 
-// Faixas de horário proibido
 const BLOCKED_HOURS = [
-    { start: 12, end: 14 }, // 12h às 14h
-    { start: 20, end: 24 }, // 20h às 00h
-    { start: 0, end: 8 },   // 00h às 08h
+    { start: 12, end: 14 }, // almoço
+    { start: 20, end: 24 }, // noite
+    { start: 0, end: 8 },   // madrugada
 ];
 
-// Função para verificar se o horário é bloqueado
+// Verifica se o horário é bloqueado
 function isBlockedHour(date) {
     const hour = date.getHours();
     return BLOCKED_HOURS.some(({ start, end }) =>
@@ -17,16 +16,16 @@ function isBlockedHour(date) {
     );
 }
 
-// Corrige o horário para o próximo horário permitido
+// Avança até o próximo horário permitido
 function adjustToNextValidTime(date) {
     let adjusted = new Date(date);
     while (isBlockedHour(adjusted)) {
-        adjusted.setMinutes(adjusted.getMinutes() + 15); // avança em blocos de 15 minutos
+        adjusted.setMinutes(adjusted.getMinutes() + 15); // pula em blocos de 15 min
     }
     return adjusted;
 }
 
-// Converter string "2025-01-17 10:47:23" para Date
+// Converte string tipo "2025-01-17 10:47:23" para Date
 function parseSendAt(sendAt) {
     if (!sendAt) return null;
     try {
@@ -67,28 +66,27 @@ async function storeBulk(request, reply) {
     }
 
     const results = [];
-
-    // Agrupar mensagens por horário sendAt para aplicar delay entre elas
     const groupedByTime = {};
+
+    // Agrupar mensagens pelo sendAt
     for (const item of data) {
         const key = item.sendAt || "immediate";
         if (!groupedByTime[key]) groupedByTime[key] = [];
         groupedByTime[key].push(item);
     }
 
-    // Processar cada grupo (horário)
+    const FIXED_DELAY = 40000; // 40 segundos fixos
+
     for (const [sendAtKey, group] of Object.entries(groupedByTime)) {
         let baseSendAt = sendAtKey !== "immediate" ? parseSendAt(sendAtKey) : null;
 
-        if (baseSendAt) {
-            // Ajustar se estiver em horário bloqueado
-            if (isBlockedHour(baseSendAt)) {
-                baseSendAt = adjustToNextValidTime(baseSendAt);
-            }
+        // Ajusta o sendAt se estiver em horário bloqueado
+        if (baseSendAt && isBlockedHour(baseSendAt)) {
+            baseSendAt = adjustToNextValidTime(baseSendAt);
         }
 
-        // Controlar delays aleatórios para mensagens com mesmo horário
-        let accumulatedDelay = 0;
+        // Hora base de envio (agora ou sendAt ajustado)
+        let nextSendTime = baseSendAt ? new Date(baseSendAt) : new Date();
 
         for (const item of group) {
             const { country, dd, number, message } = item;
@@ -101,6 +99,14 @@ async function storeBulk(request, reply) {
                 });
                 continue;
             }
+
+            // Se o próximo horário cair em período bloqueado, pula pro horário permitido
+            if (isBlockedHour(nextSendTime)) {
+                nextSendTime = adjustToNextValidTime(nextSendTime);
+            }
+
+            const now = Date.now();
+            const delay = Math.max(nextSendTime.getTime() - now, 0);
 
             const whatsappData = {
                 id: crypto.randomUUID(),
@@ -123,31 +129,19 @@ async function storeBulk(request, reply) {
                     zapi_client_token: whatsappOptionConfiguration.zapi_client_token,
                 };
 
-                // Definir delay base
-                let delay = 0;
-                if (baseSendAt) {
-                    const now = Date.now();
-                    delay = Math.max(baseSendAt.getTime() - now, 0);
-                } else {
-                    delay = Math.floor(Math.random() * 4000) + 1000; // 1 a 5 segundos
-                }
-
-                // Adicionar delay extra entre mensagens com mesmo horário
-                if (group.length > 1) {
-                    const extraDelay = Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000; // 15s a 40s
-                    accumulatedDelay += extraDelay;
-                    delay += accumulatedDelay;
-                }
-
+                // Enfileira com o delay calculado
                 await whatsappQueueBulk.add(dataWhatsapp, { delay });
 
                 results.push({
                     id: newWhatsappNotification.id,
                     number: whatsappData.number,
                     status: "queued",
-                    sendAt: baseSendAt ? baseSendAt.toISOString() : null,
+                    sendAt: nextSendTime.toISOString(),
                     delay,
                 });
+
+                // Avança 40 segundos para a próxima mensagem
+                nextSendTime = new Date(nextSendTime.getTime() + FIXED_DELAY);
             } catch (error) {
                 results.push({
                     item,
