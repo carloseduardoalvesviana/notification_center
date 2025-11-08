@@ -1,6 +1,16 @@
 const prisma = require("../database");
 const crypto = require("crypto");
 const whatsappQueueBulk = require("../queues/whatsappQueueBulk");
+const Redis = require("ioredis");
+const { env } = require("../env");
+
+// 🔹 Cliente Redis (para controle de intervalo entre envios)
+const redis = new Redis({
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
+    username: env.REDIS_USERNAME,
+});
 
 const BLOCKED_HOURS = [
     { start: 12, end: 14 }, // almoço
@@ -25,7 +35,6 @@ function adjustToNextValidTime(date) {
     return adjusted;
 }
 
-// Converte string "2025-01-17 10:47:23" para Date
 function parseSendAt(sendAt) {
     if (!sendAt) return null;
     try {
@@ -38,19 +47,33 @@ function parseSendAt(sendAt) {
     }
 }
 
-// Gera delay aleatório entre 40.000 e 90.000 ms (40 a 90 segundos)
 function getRandomDelay() {
-    return Math.floor(Math.random() * (90000 - 40000 + 1)) + 40000;
+    return Math.floor(Math.random() * (90000 - 40000 + 1)) + 40000; // 40-90s
 }
-
-// Gera delay aleatório entre 15.000 e 90.000 ms (15 a 90 segundos)
 function getDelayForPastSendAt() {
-    return Math.floor(Math.random() * (90000 - 15000 + 1)) + 15000;
+    return Math.floor(Math.random() * (90000 - 15000 + 1)) + 15000; // 15-90s
+}
+function getSmallJitter() {
+    return Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000; // 10-20s
 }
 
-// Gera pequeno offset aleatório (10 a 20 segundos) para evitar colisão
-function getSmallJitter() {
-    return Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000;
+async function getNextAvailableTime(customer_id) {
+    const lastTimeStr = await redis.get(`lastSendTime:${customer_id}`);
+    if (!lastTimeStr) return new Date();
+    const lastTime = new Date(lastTimeStr);
+    const now = new Date();
+    // Se o último envio ainda está no futuro, adiciona 10s de folga
+    return lastTime > now ? new Date(lastTime.getTime() + 10_000) : now;
+}
+
+async function setNextAvailableTime(customer_id, date) {
+    // 🔹 Salva o próximo horário disponível com expiração de 2 horas
+    await redis.set(
+        `lastSendTime:${customer_id}`,
+        date.toISOString(),
+        "EX",
+        60 * 60 * 2 // 2 horas
+    );
 }
 
 async function storeBulk(request, reply) {
@@ -58,81 +81,63 @@ async function storeBulk(request, reply) {
     const { data } = request.body;
 
     if (!Array.isArray(data) || data.length === 0) {
-        return reply.status(400).send({
-            message: "Invalid format: 'data' must be a non-empty array of messages.",
-        });
+        return reply.status(400).send({ message: "Invalid format: 'data' must be a non-empty array of messages." });
     }
 
     if (data.length > 500) {
-        return reply.status(400).send({
-            message: "The maximum number of messages allowed is 500.",
-        });
+        return reply.status(400).send({ message: "The maximum number of messages allowed is 500." });
     }
 
-    const whatsappOptionConfiguration =
-        await prisma.whatsappOptionsForCustomers.findFirst({
-            where: { customer_id },
-        });
+    const whatsappOptionConfiguration = await prisma.whatsappOptionsForCustomers.findFirst({
+        where: { customer_id },
+    });
 
     if (!whatsappOptionConfiguration) {
-        return reply
-            .status(404)
-            .send({ message: "Whatsapp configuration not provided" });
+        return reply.status(404).send({ message: "Whatsapp configuration not provided" });
     }
 
     const results = [];
     const groupedByTime = {};
 
-    // Agrupar mensagens pelo sendAt
     for (const item of data) {
         const key = item.sendAt || "immediate";
         if (!groupedByTime[key]) groupedByTime[key] = [];
         groupedByTime[key].push(item);
     }
 
+    // 🔹 Começa pelo horário global salvo no Redis
+    let globalNextSendTime = await getNextAvailableTime(customer_id);
+
     for (const [sendAtKey, group] of Object.entries(groupedByTime)) {
         let baseSendAt = sendAtKey !== "immediate" ? parseSendAt(sendAtKey) : null;
 
-        // Se o sendAt estiver no passado → agora + 15 a 90 segundos
         if (baseSendAt && baseSendAt.getTime() < Date.now()) {
             const randomDelayMs = getDelayForPastSendAt();
             baseSendAt = new Date(Date.now() + randomDelayMs);
         }
 
-        // Ajusta o sendAt base se estiver em horário bloqueado
         if (baseSendAt && isBlockedHour(baseSendAt)) {
             baseSendAt = adjustToNextValidTime(baseSendAt);
         }
 
-        // Define o horário inicial: sendAt ajustado ou agora
-        let nextSendTime = baseSendAt ? new Date(baseSendAt) : new Date();
+        let nextSendTime = baseSendAt ? new Date(Math.max(baseSendAt, globalNextSendTime)) : globalNextSendTime;
 
         for (const item of group) {
             const { country, dd, number, message } = item;
 
             if (!country || !dd || !number || !message) {
-                results.push({
-                    item,
-                    status: "error",
-                    message: "Missing required fields (country, dd, number, message)",
-                });
+                results.push({ item, status: "error", message: "Missing required fields" });
                 continue;
             }
 
-            // Gera delay aleatório entre 40 e 90 segundos
             const randomDelayMs = getRandomDelay();
-
-            // Calcula horário candidato
             let candidateSendTime = new Date(nextSendTime.getTime() + randomDelayMs);
 
-            // Ajusta se cair em horário bloqueado
             if (isBlockedHour(candidateSendTime)) {
                 candidateSendTime = adjustToNextValidTime(candidateSendTime);
-                // Adiciona jitter pequeno para evitar colisão
                 candidateSendTime = new Date(candidateSendTime.getTime() + getSmallJitter());
             }
 
-            // Garante que o envio não seja no passado
             const now = Date.now();
             const finalSendTime = new Date(Math.max(candidateSendTime.getTime(), now));
             const delay = finalSendTime.getTime() - now;
@@ -148,9 +153,7 @@ async function storeBulk(request, reply) {
             };
 
             try {
-                const newWhatsappNotification = await prisma.whatsappNotifications.create({
-                    data: whatsappData,
-                });
+                const newWhatsappNotification = await prisma.whatsappNotifications.create({ data: whatsappData });
 
                 const dataWhatsapp = {
                     ...whatsappData,
@@ -158,7 +161,6 @@ async function storeBulk(request, reply) {
                     zapi_client_token: whatsappOptionConfiguration.zapi_client_token,
                 };
 
-                // Enfileira com delay calculado
                 await whatsappQueueBulk.add(dataWhatsapp, { delay });
 
                 results.push({
@@ -169,17 +171,16 @@ async function storeBulk(request, reply) {
                     delay,
                 });
 
-                // Atualiza nextSendTime com base no envio atual + 1s (evita loop)
+                // Atualiza o tempo base para próxima mensagem (1s depois da atual)
                 nextSendTime = new Date(finalSendTime.getTime() + 1000);
-
             } catch (error) {
-                results.push({
-                    item,
-                    status: "error",
-                    message: error.message || "Failed to queue message",
-                });
+                results.push({ item, status: "error", message: error.message });
             }
         }
+
+        // 🔹 Atualiza o tempo global do cliente no Redis
+        globalNextSendTime = new Date(nextSendTime.getTime() + 10_000); // +10s de respiro entre lotes
+        await setNextAvailableTime(customer_id, globalNextSendTime);
     }
 
     return reply.send({
