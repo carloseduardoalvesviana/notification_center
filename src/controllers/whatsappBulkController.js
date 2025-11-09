@@ -48,10 +48,10 @@ function parseSendAt(sendAt) {
 }
 
 function getRandomDelay() {
-    return Math.floor(Math.random() * (90000 - 40000 + 1)) + 40000; // 40-90s
+    return Math.floor(Math.random() * (50000 - 30000 + 1)) + 40000; // 40-90s
 }
 function getDelayForPastSendAt() {
-    return Math.floor(Math.random() * (90000 - 15000 + 1)) + 15000; // 15-90s
+    return Math.floor(Math.random() * (50000 - 15000 + 1)) + 15000; // 15-90s
 }
 function getSmallJitter() {
     return Math.floor(Math.random() * (20000 - 10000 + 1)) + 10000; // 10-20s

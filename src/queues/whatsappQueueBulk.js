@@ -30,7 +30,7 @@ const redis = new Redis({
   username: env.REDIS_USERNAME,
 });
 
-const MIN_INTERVAL_MS = 20000; // 10 segundos
+const MIN_INTERVAL_MS = 10000; // 10 segundos
 
 // 🕒 Utilitário: aguarda um tempo
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
