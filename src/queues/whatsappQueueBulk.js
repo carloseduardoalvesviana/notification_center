@@ -30,8 +30,6 @@ const redis = new Redis({
   username: env.REDIS_USERNAME,
 });
 
-const MIN_INTERVAL_MS = 10000; // 10 segundos
-
 // 🕒 Utilitário: aguarda um tempo
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -40,34 +38,40 @@ function limparNumero(telefone) {
   return telefone.replace(/[^0-9]/g, "");
 }
 
-// 🔹 Garante espaçamento entre mensagens do mesmo cliente
-async function ensureCustomerDelay(customer_id) {
+// 🔹 Delay dinâmico mínimo baseado no delay médio de envio
+async function ensureCustomerDelay(customer_id, dynamicDelayMs = 0) {
   const key = `last_send:${customer_id}`;
   const now = Date.now();
-
-  // Busca o último envio no Redis
   const lastSend = await redis.get(key);
+
+  // 🧮 Delay mínimo = entre 1/3 e 1/2 do delay médio usado no storeBulk
+  // (garante espaçamento mesmo se storeBulk usar delays grandes)
+  const adaptiveInterval = Math.max(
+    7000, // nunca menos que 7 segundos
+    Math.min(dynamicDelayMs / 2, 20000) // limite máximo 20s
+  );
 
   if (lastSend) {
     const diff = now - parseInt(lastSend, 10);
 
-    if (diff < MIN_INTERVAL_MS) {
-      const waitTime = MIN_INTERVAL_MS - diff;
-      console.log(`[${customer_id}] Aguardando ${waitTime / 1000}s para evitar bloqueio...`);
+    if (diff < adaptiveInterval) {
+      const waitTime = adaptiveInterval - diff;
+      console.log(`[${customer_id}] ⏳ Aguardando ${waitTime / 1000}s para evitar bloqueio...`);
       await sleep(waitTime);
     }
   }
 
-  // Atualiza o horário do último envio
+  // Atualiza horário do último envio
   await redis.set(key, now);
 }
 
+// 🔹 Processador da fila principal
 whatsappQueueBulk.process(async (job) => {
-  const { id, number, customer_id, message, url, zapi_client_token } = job.data;
+  const { id, number, customer_id, message, url, zapi_client_token, delayMs } = job.data;
 
   try {
-    // 🕒 Garante espaçamento mínimo entre mensagens do mesmo cliente
-    await ensureCustomerDelay(customer_id);
+    // Garante espaçamento mínimo dinâmico entre mensagens do mesmo cliente
+    await ensureCustomerDelay(customer_id, delayMs);
 
     const smsData = {
       phone: limparNumero(number),
@@ -82,7 +86,7 @@ whatsappQueueBulk.process(async (job) => {
       timeout: 20000, // evita travar fila se a API demorar
     };
 
-    // Envia via API Z-API
+    // 🔹 Envio via API Z-API
     const response = await axios.post(url, smsData, headers);
 
     // ✅ Atualiza status no banco
@@ -100,7 +104,7 @@ whatsappQueueBulk.process(async (job) => {
     job.progress(100);
     return Promise.resolve();
   } catch (error) {
-    console.error("❌ Failed to send Whatsapp:", error.message);
+    console.error(`❌ Falha no envio (cliente ${customer_id}):`, error.message);
 
     // Salva erro no banco
     await prisma.whatsappNotifications.update({

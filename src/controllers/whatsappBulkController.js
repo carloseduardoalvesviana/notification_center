@@ -49,7 +49,7 @@ function parseSendAt(sendAt) {
     }
 }
 
-// 🔹 Delay dinâmico com base em valores fixos aleatórios
+// 🔹 Delay dinâmico com base em valores ímpares aleatórios
 function getDynamicDelay() {
     const possibleDelays = [19, 23, 27, 31, 35, 41, 47]; // segundos
     const randomSeconds = possibleDelays[Math.floor(Math.random() * possibleDelays.length)];
@@ -166,6 +166,7 @@ async function storeBulk(request, reply) {
                     ...whatsappData,
                     url: `${whatsappOptionConfiguration.zapi_client_url}/send-text`,
                     zapi_client_token: whatsappOptionConfiguration.zapi_client_token,
+                    delayMs: delay, // ✅ integração com queue dinâmica
                 };
 
                 // adiciona na fila com delay
