@@ -287,3 +287,125 @@ Authorization: Bearer <CUSTOMER_TOKEN>
 ```
 
 ---
+
+## Executar com Docker (local)
+
+Estas instruções mostram duas formas simples de executar a aplicação localmente com Docker:
+
+- Opção rápida (rodar containers separados com `docker run` para MySQL e Redis + sua app)
+- Opção recomendada (usar `docker compose` com um arquivo de exemplo)
+
+Observação: a aplicação lê variáveis de ambiente do `.env` (veja seção Variáveis de ambiente acima). Ajuste as portas conforme necessário.
+
+1) Opção rápida (containers separados)
+
+- Criar uma rede Docker para comunicação entre containers:
+
+```bash
+docker network create notification_net
+```
+
+- Subir banco MySQL (exemplo mínimo):
+
+```bash
+docker run -d --name nc-mysql --network notification_net \
+  -e MYSQL_ROOT_PASSWORD=rootpass \
+  -e MYSQL_DATABASE=notifications \
+  -p 3306:3306 \
+  mysql:8 --default-authentication-plugin=mysql_native_password
+```
+
+- Subir Redis:
+
+```bash
+docker run -d --name nc-redis --network notification_net -p 6379:6379 redis:6
+```
+
+- Build da imagem da aplicação (no diretório do projeto):
+
+```bash
+docker build -t notification_center:local .
+```
+
+- Criar um arquivo `.env` local (exemplo minimal):
+
+```
+PORT=3333
+ADMIN_TOKEN=admin_example_token
+DATABASE_URL=mysql://root:rootpass@nc-mysql:3306/notifications
+REDIS_HOST=nc-redis
+REDIS_PORT=6379
+URL_NOTIFICATION=http://example.local/webhook
+```
+
+- Rodar o container da aplicação apontando para a rede e o arquivo `.env`:
+
+```bash
+docker run -d --name nc-app --network notification_net --env-file .env -p 3333:3333 notification_center:local
+```
+
+- Rodando migrações (opcional):
+
+Se você prefere rodar as migrations dentro do container após subir o DB, execute:
+
+```bash
+docker exec -it nc-app sh -c "npx prisma generate && npx prisma migrate deploy"
+```
+
+2) Opção recomendada: `docker compose` (exemplo)
+
+Crie um arquivo `docker-compose.yml` próximo ao `Dockerfile` com o conteúdo abaixo (exemplo):
+
+```yaml
+version: '3.8'
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: notifications
+    ports:
+      - '3306:3306'
+    volumes:
+      - db-data:/var/lib/mysql
+
+  redis:
+    image: redis:6
+    ports:
+      - '6379:6379'
+
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - '3333:3333'
+    depends_on:
+      - db
+      - redis
+    networks:
+      - default
+
+volumes:
+  db-data:
+```
+
+- Com o `docker-compose.yml` e `.env` no lugar, levante tudo com:
+
+```bash
+docker compose up -d --build
+```
+
+- Para aplicar migrations (recomendado antes de executar em produção):
+
+```bash
+docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
+```
+
+3) Observações úteis
+
+- Porta: por padrão a aplicação usa `PORT=3333` (veja `src/env.js`). No `docker run`/`docker compose` mapeie a porta externa que preferir.
+- Rede: no exemplo `docker run` usamos `--network notification_net` para que `DATABASE_URL` e `REDIS_HOST` apontem para os nomes dos containers (`nc-mysql`, `nc-redis`). No `docker-compose` os serviços conversam entre si automaticamente.
+- Bull Board (dashboard): após subir a app, o painel do Bull Board estará disponível em `http://localhost:3333/ui` (ou na porta configurada).
+- Persistência: monte volumes para MySQL e, se desejar, para logs/arquivos gerados pela aplicação.
+
+Se quiser, eu gero um `docker-compose.yml` no repositório com valores comentados e/ou adapto o `Dockerfile` para rodar automaticamente as migrations na inicialização (atenção: rodar `migrate dev` automaticamente pode sobrescrever estado em desenvolvimento).
