@@ -407,5 +407,3 @@ docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
 - Rede: no exemplo `docker run` usamos `--network notification_net` para que `DATABASE_URL` e `REDIS_HOST` apontem para os nomes dos containers (`nc-mysql`, `nc-redis`). No `docker-compose` os serviços conversam entre si automaticamente.
 - Bull Board (dashboard): após subir a app, o painel do Bull Board estará disponível em `http://localhost:3333/ui` (ou na porta configurada).
 - Persistência: monte volumes para MySQL e, se desejar, para logs/arquivos gerados pela aplicação.
-
-Se quiser, eu gero um `docker-compose.yml` no repositório com valores comentados e/ou adapto o `Dockerfile` para rodar automaticamente as migrations na inicialização (atenção: rodar `migrate dev` automaticamente pode sobrescrever estado em desenvolvimento).
