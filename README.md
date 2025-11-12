@@ -218,28 +218,28 @@ Observação: o server usa a variável `PORT` (padrão no `env.js` é 3333). Os 
 ### Send SMS
 POST http://localhost:3000/sms
 Content-Type: application/json
-Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+Authorization: Bearer <CUSTOMER_TOKEN>
 
 ```json
 {
   "country": "+55",
-  "dd": "86",
-  "number": "999999999",
-  "message": "Teste SMS nova central de notificações"
+  "dd": "99",
+  "number": "999000111",
+  "message": "Teste SMS (dados fictícios)"
 }
 ```
 
 ### Send Whatsapp
 POST http://localhost:3000/whatsapp
 Content-Type: application/json
-Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+Authorization: Bearer <CUSTOMER_TOKEN>
 
 ```json
 {
   "country": "+55",
-  "dd": "86",
-  "number": "999999999",
-  "message": "🌟 Oi, Fulano! Que alegria ter você conosco. 🙏💙 Dr. Vinícius quer compartilhar sua jornada. 1- Sim, autorizo  2- Não",
+  "dd": "99",
+  "number": "999000111",
+  "message": "Olá! Mensagem de teste (dados fictícios)",
   "sendAt": "2025-11-07 10:25:23"
 }
 ```
@@ -247,39 +247,39 @@ Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
 ### Send Email
 POST http://localhost:3000/email
 Content-Type: application/json
-Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+Authorization: Bearer <CUSTOMER_TOKEN>
 
 ```json
 {
-  "email_to": "usuario@gmai.com",
-  "email_title": "Bem-vindo à nossa plataforma!",
-  "email_header_title": "<div style=\"background: linear-gradient(to right, #1a73e8, #4f46e5); padding: 30px 20px; text-align: center; font-family: Arial, Helvetica, sans-serif; border-bottom: 3px solid #facc15;\"><h2 style=\"font-size: 28px; color: #ffffff; margin: 0; line-height: 1.2; font-weight: bold; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);\">Inscrição 360</h2></div>",
-  "email_content": "<div style=\"padding: 30px 20px; text-align: center; font-family: Arial, Helvetica, sans-serif; background-color: #f9fafb; border-radius: 6px; margin: 10px;\"><h3 style=\"font-size: 22px; color: #1f2937; margin: 0 0 15px 0; line-height: 1.3; font-weight: 600;\">Bem-vindo, <a href=\"mailto:usuario@gmaill.com\" style=\"color: #1a73e8; text-decoration: none; font-weight: 500;\">usuario@gmaill.com!</a></h3><p style=\"font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 20px 0;\">Estamos entusiasmados por tê-lo conosco! Acesse nossa plataforma para explorar ferramentas e recursos que vão impulsionar seu crescimento e aprendizado.</p><a href=\"https://inscricao360.com.br\" style=\"display: inline-block; padding: 14px 30px; background: linear-gradient(to bottom, #1a73e8, #2563eb); color: #ffffff; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); transition: background 0.3s ease;\">Acessar Plataforma</a></div>",
-  "email_footer_content": "<div style=\"text-align: center; font-size: 13px; color: #6b7280; line-height: 1.5; font-family: Arial, Helvetica, sans-serif; padding: 20px; background-color: #f3f4f6;\"><p style=\"margin: 0;\">© 2025 <a href=\"https://inscricao360.com.br\" style=\"color: #1a73e8; text-decoration: none;\">inscricao360.com.br</a>. Todos os direitos reservados.</p><p style=\"margin: 5px 0 0 0;\">Se você não se cadastrou, por favor, ignore este e-mail.</p></div>"
+  "email_to": "user@example.com",
+  "email_title": "Boas-vindas (exemplo)",
+  "email_header_title": "<div style=\"padding:20px; text-align:center; background:#eee;\"><h2>Empresa Exemplo</h2></div>",
+  "email_content": "<div style=\"padding:20px;\"><p>Olá, este é um e-mail de teste com dados fictícios.</p></div>",
+  "email_footer_content": "<div style=\"padding:10px; font-size:12px; color:#666;\">© 2025 Empresa Exemplo. Todos os direitos reservados.</div>"
 }
 ```
 
 ### Send Whatsapp Bulk
 POST http://localhost:3000/whatsapp-bulk
 Content-Type: application/json
-Authorization: Bearer 4b0bc9fb-6c16-49cf-ad0e-bf98a201bc48
+Authorization: Bearer <CUSTOMER_TOKEN>
 
 ```json
 {
   "data": [
     {
       "country": "+55",
-      "dd": "86",
-      "number": "999999999",
-      "message": "🌟 Oi, Fulano! ",
+      "dd": "99",
+      "number": "999000111",
+      "message": "Mensagem em lote (exemplo)",
       "sendAt": "2025-11-07 10:40:23"
     },
     {
       "country": "+55",
-      "dd": "86",
-      "number": "999999999",
-      "message": "🌟 Oi, Fulano! ",
-      "sendAt": "2025-11-07 10:40:23"
+      "dd": "99",
+      "number": "999000112",
+      "message": "Mensagem em lote (exemplo)",
+      "sendAt": "2025-11-07 10:40:25"
     }
     /* ... até 500 objetos */
   ]
