@@ -6,6 +6,8 @@ process.env.TZ = "America/Sao_Paulo";
 const fastify = require("fastify");
 // Rate limiter plugin to protect endpoints from abuse
 const rateLimit = require("@fastify/rate-limit");
+const swagger = require("@fastify/swagger");
+const swaggerUI = require("@fastify/swagger-ui");
 
 // --- Route handlers (each file registers Fastify routes)
 // - customersRoutes: POST /customers (admin only)
@@ -37,6 +39,171 @@ const whatsappQueueBulk = require("./queues/whatsappQueueBulk");
 
 // Fastify server with logging enabled
 const server = fastify({ logger: true });
+
+server.register(swagger, {
+  openapi: {
+    openapi: "3.0.0",
+    info: {
+      title: "Central de Notificações",
+      description: "API para envio de notificações (E-mail, SMS e WhatsApp)",
+      version: "1.0.0",
+    },
+    servers: [
+      { url: `http://localhost:${env.PORT || 3333}` }
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+        },
+      },
+      schemas: {
+        SmsBody: {
+          type: "object",
+          required: ["country", "dd", "number", "message"],
+          properties: {
+            country: { type: "string", example: "+55" },
+            dd: { type: "string", example: "99" },
+            number: { type: "string", example: "999000111" },
+            message: { type: "string", example: "Teste SMS" },
+          },
+        },
+        WhatsappBody: {
+          type: "object",
+          required: ["country", "dd", "number", "message"],
+          properties: {
+            country: { type: "string", example: "+55" },
+            dd: { type: "string", example: "99" },
+            number: { type: "string", example: "999000111" },
+            message: { type: "string", example: "Olá!" },
+            image: { type: "string", example: "https://cdn.example.com/logo.png" },
+            sendAt: { type: "string", example: "2025-11-07 10:25:23" },
+          },
+        },
+        WhatsappBulkBody: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "array",
+              items: { $ref: "#/components/schemas/WhatsappBody" },
+            },
+          },
+        },
+        EmailBody: {
+          type: "object",
+          required: ["email_to", "email_title", "email_header_title", "email_content", "email_footer_content"],
+          properties: {
+            email_to: { type: "string", example: "user@example.com" },
+            email_title: { type: "string", example: "Assunto" },
+            email_header_title: { type: "string" },
+            email_content: { type: "string" },
+            email_footer_content: { type: "string" },
+          },
+        },
+        CustomerBody: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", example: "Empresa Exemplo" },
+          },
+        },
+      },
+    },
+    paths: {
+      "/sms": {
+        post: {
+          security: [{ bearerAuth: [] }],
+          summary: "Enviar SMS",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/SmsBody" } } },
+          },
+          responses: {
+            200: { description: "SMS enfileirado" },
+            400: { description: "Falha de validação" },
+            401: { description: "Não autorizado" },
+          },
+        },
+      },
+      "/whatsapp": {
+        post: {
+          security: [{ bearerAuth: [] }],
+          summary: "Enviar WhatsApp (único)",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/WhatsappBody" } } },
+          },
+          responses: {
+            200: { description: "WhatsApp enfileirado" },
+            400: { description: "Falha de validação" },
+            401: { description: "Não autorizado" },
+          },
+        },
+      },
+      "/whatsapp-bulk": {
+        post: {
+          security: [{ bearerAuth: [] }],
+          summary: "Enviar WhatsApp (bulk)",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/WhatsappBulkBody" } } },
+          },
+          responses: {
+            200: { description: "WhatsApp bulk enfileirado" },
+            400: { description: "Falha de validação" },
+            401: { description: "Não autorizado" },
+          },
+        },
+      },
+      "/email": {
+        post: {
+          security: [{ bearerAuth: [] }],
+          summary: "Enviar e-mail",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/EmailBody" } } },
+          },
+          responses: {
+            200: { description: "E-mail enfileirado" },
+            400: { description: "Falha de validação" },
+            401: { description: "Não autorizado" },
+          },
+        },
+      },
+      "/customers": {
+        post: {
+          security: [{ bearerAuth: [] }],
+          summary: "Criar cliente (admin)",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { $ref: "#/components/schemas/CustomerBody" } } },
+          },
+          responses: {
+            200: { description: "Cliente criado" },
+            400: { description: "Falha de validação" },
+            401: { description: "Não autorizado" },
+          },
+        },
+      },
+      "/webhook-received": {
+        post: {
+          summary: "Webhook de recebimento (Z-API)",
+          responses: { 200: { description: "OK" } },
+        },
+      },
+    },
+  },
+});
+
+server.register(swaggerUI, {
+  routePrefix: "/docs",
+  uiConfig: {
+    docExpansion: "list",
+    deepLinking: true,
+  },
+});
 
 /* ----------------------------- Bull Board ----------------------------- */
 const serverAdapter = new FastifyAdapter();

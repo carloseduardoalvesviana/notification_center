@@ -530,3 +530,7 @@ docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
 - Painel para monitorar filas em tempo real.
 - Disponível em `http://localhost:3333/ui`.
 - Mostra jobs em estados waiting, active, failed e completed, além de logs.
+
+### Swagger
+- Documentação interativa disponível em `http://localhost:3333/docs`.
+- Inclui rotas, schemas de entrada, respostas e autenticação por Bearer Token.
