@@ -74,6 +74,8 @@ whatsappQueue.process(async (job) => {
   try {
     console.log(`🚀 Enviando mensagem [${id}] para ${number} (tentativa ${attempt})`);
 
+    await ensureCustomerDelay(customer_id);
+
     const phone = limparNumero(number);
 
     let payload;
@@ -124,4 +126,3 @@ whatsappQueue.process(async (job) => {
 });
 
 module.exports = whatsappQueue;
-    await ensureCustomerDelay(customer_id);
