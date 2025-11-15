@@ -45,8 +45,8 @@ async function ensureCustomerDelay(customer_id, dynamicDelayMs = 0) {
   const lastSend = await redis.get(key);
 
   const adaptiveInterval = Math.max(
-    7000, // nunca menos que 7 segundos
-    Math.min(dynamicDelayMs / 2, 20000) // máximo 20s
+    10000,
+    Math.min(Math.floor(dynamicDelayMs / 2), 30000)
   );
 
   if (lastSend) {
@@ -68,10 +68,13 @@ whatsappQueueBulk.process(1, async (job) => { // 👈 garante 1 por vez
   try {
     await ensureCustomerDelay(customer_id, delayMs);
 
-    const smsData = {
-      phone: limparNumero(number),
-      message,
-    };
+    const phone = limparNumero(number);
+    let payload;
+    if (url.endsWith("/send-image")) {
+      payload = { phone, image: job.data.image, caption: job.data.caption, viewOnce: false };
+    } else {
+      payload = { phone, message };
+    }
 
     const headers = {
       headers: {
@@ -81,10 +84,14 @@ whatsappQueueBulk.process(1, async (job) => { // 👈 garante 1 por vez
       timeout: 20000,
     };
 
-    const response = await axios.post(url, smsData, headers);
+    const payloadType = url.endsWith("/send-image")
+      ? (typeof job.data.image === "string" && job.data.image.startsWith("data:") ? "image_base64" : "image_url_or_base64")
+      : "text";
+    console.log("🔎 Enviando para Z-API (bulk)", { url, payloadType });
+    const response = await axios.post(url, payload, headers);
 
     await prisma.whatsappNotifications.update({
-      where: { id, customer_id },
+      where: { id },
       data: {
         status: {
           status: "sent",
@@ -101,7 +108,7 @@ whatsappQueueBulk.process(1, async (job) => { // 👈 garante 1 por vez
     console.error(`❌ Falha no envio (cliente ${customer_id}):`, error.message);
 
     await prisma.whatsappNotifications.update({
-      where: { id, customer_id },
+      where: { id },
       data: {
         status: {
           status: "error",

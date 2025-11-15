@@ -51,9 +51,8 @@ function parseSendAt(sendAt) {
 
 // 🔹 Delay dinâmico com base em valores ímpares aleatórios
 function getDynamicDelay() {
-    const possibleDelays = [19, 23, 27, 31, 35, 41, 47]; // segundos
-    const randomSeconds = possibleDelays[Math.floor(Math.random() * possibleDelays.length)];
-    return randomSeconds * 1000; // converte para milissegundos
+    const possibleDelaysMs = [1000, 1500, 2000, 2500, 3000];
+    return possibleDelaysMs[Math.floor(Math.random() * possibleDelaysMs.length)];
 }
 
 // 🔹 Recupera o último horário de envio do cliente no Redis
@@ -128,7 +127,7 @@ async function storeBulk(request, reply) {
         let nextSendTime = baseSendAt ? new Date(Math.max(baseSendAt, globalNextSendTime)) : globalNextSendTime;
 
         for (const item of group) {
-            const { country, dd, number, message } = item;
+            const { country, dd, number, message, image } = item;
 
             if (!country || !dd || !number || !message) {
                 results.push({ item, status: "error", message: "Missing required fields" });
@@ -153,7 +152,7 @@ async function storeBulk(request, reply) {
                 id: crypto.randomUUID(),
                 customer_id,
                 zapi_client_instance: whatsappOptionConfiguration.zapi_client_instance,
-                number: `${country}${dd}${number.slice(1)}`,
+                number: `${country}${dd}${number}`,
                 status: {},
                 received: {},
                 message,
@@ -162,14 +161,53 @@ async function storeBulk(request, reply) {
             try {
                 const newWhatsappNotification = await prisma.whatsappNotifications.create({ data: whatsappData });
 
-                const dataWhatsapp = {
+                let dataWhatsapp = {
                     ...whatsappData,
-                    url: `${whatsappOptionConfiguration.zapi_client_url}/send-text`,
                     zapi_client_token: whatsappOptionConfiguration.zapi_client_token,
-                    delayMs: delay, // ✅ integração com queue dinâmica
+                    delayMs: delay,
                 };
 
+                if (image) {
+                    let imageContent = null;
+                    let isUrl = false;
+                    try {
+                        const u = new URL(image);
+                        isUrl = u.protocol === "http:" || u.protocol === "https:";
+                    } catch {}
+                    if (isUrl) {
+                        imageContent = image;
+                    } else {
+                        let base64ForValidation = image;
+                        const i = base64ForValidation.indexOf(";base64,");
+                        if (base64ForValidation.startsWith("data:") && i !== -1) base64ForValidation = base64ForValidation.substring(i + 8);
+                        const base64Regex = /^[A-Za-z0-9+/=]+$/;
+                        const validChars = base64Regex.test(base64ForValidation);
+                        let decoded;
+                        try { decoded = Buffer.from(base64ForValidation, "base64"); } catch {}
+                        const valid = validChars && decoded && decoded.length > 0;
+                        if (!valid) {
+                            results.push({ item, status: "error", message: "Invalid image (malformed Base64 or URL)" });
+                            continue;
+                        }
+                        imageContent = image; // mantém o formato original
+                    }
+                    const caption = typeof message === "string" ? message : "";
+                    dataWhatsapp = {
+                        ...dataWhatsapp,
+                        url: `${whatsappOptionConfiguration.zapi_client_url}/send-image`,
+                        image: imageContent,
+                        caption,
+                    };
+                } else {
+                    dataWhatsapp = {
+                        ...dataWhatsapp,
+                        url: `${whatsappOptionConfiguration.zapi_client_url}/send-text`,
+                    };
+                }
+
                 // adiciona na fila com delay
+                const { zapi_client_token: _omit, ...payloadToLog } = dataWhatsapp;
+                console.log("📥 Adicionando job na fila whatsapp-queue-bulk", { ...payloadToLog, delay });
                 await whatsappQueueBulk.add(dataWhatsapp, { delay });
 
                 results.push({
@@ -180,14 +218,12 @@ async function storeBulk(request, reply) {
                     delay,
                 });
 
-                // próxima mensagem começa 1s depois da anterior
-                nextSendTime = new Date(finalSendTime.getTime() + 1000);
+                nextSendTime = new Date(finalSendTime.getTime() + 10_000);
             } catch (error) {
                 results.push({ item, status: "error", message: error.message });
             }
         }
 
-        // atualiza o tempo global do cliente no Redis (+10s entre lotes)
         globalNextSendTime = new Date(nextSendTime.getTime() + 10_000);
         await setNextAvailableTime(customer_id, globalNextSendTime);
     }
