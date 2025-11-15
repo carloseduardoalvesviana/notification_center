@@ -49,7 +49,8 @@ server.register(swagger, {
       version: "1.0.0",
     },
     servers: [
-      { url: `http://localhost:${env.PORT || 3333}` }
+      { url: `http://127.0.0.1:${env.PORT || 3000}` },
+      { url: `http://localhost:${env.PORT || 3000}` }
     ],
     components: {
       securitySchemes: {
@@ -118,7 +119,21 @@ server.register(swagger, {
           summary: "Enviar SMS",
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/SmsBody" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SmsBody" },
+                examples: {
+                  default: {
+                    value: {
+                      country: "+55",
+                      dd: "86",
+                      number: "994873708",
+                      message: "Opa tudo bem?"
+                    }
+                  }
+                }
+              }
+            },
           },
           responses: {
             200: { description: "SMS enfileirado" },
@@ -133,7 +148,42 @@ server.register(swagger, {
           summary: "Enviar WhatsApp (único)",
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/WhatsappBody" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WhatsappBody" },
+                examples: {
+                  text: {
+                    value: {
+                      country: "+55",
+                      dd: "86",
+                      number: "994873708",
+                      message: "Olá tudo bem?",
+                      sendAt: "2025-11-15 08:25:23"
+                    }
+                  },
+                  imageUrl: {
+                    value: {
+                      country: "+55",
+                      dd: "86",
+                      number: "994873708",
+                      message: "Olá tudo bem?",
+                      sendAt: "2025-11-15 08:25:23",
+                      image: "https://cdn.pixabay.com/photo/2025/10/16/08/14/parrot-9897724_1280.jpg"
+                    }
+                  },
+                  imageBase64: {
+                    value: {
+                      country: "+55",
+                      dd: "86",
+                      number: "994873708",
+                      message: "Olá tudo bem?",
+                      sendAt: "2025-11-15 09:16:23",
+                      image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34..."
+                    }
+                  }
+                }
+              }
+            },
           },
           responses: {
             200: { description: "WhatsApp enfileirado" },
@@ -148,7 +198,57 @@ server.register(swagger, {
           summary: "Enviar WhatsApp (bulk)",
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/WhatsappBulkBody" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WhatsappBulkBody" },
+                examples: {
+                  bulkUrl: {
+                    value: {
+                      data: [
+                        {
+                          country: "+55",
+                          dd: "86",
+                          number: "994873708",
+                          message: "Olá tudo bem?",
+                          sendAt: "2025-11-15 09:08:35",
+                          image: "https://cdn.pixabay.com/photo/2025/10/16/08/14/parrot-9897724_1280.jpg"
+                        },
+                        {
+                          country: "+55",
+                          dd: "86",
+                          number: "994873708",
+                          message: "Olá tudo bem?",
+                          sendAt: "2025-11-15 09:08:35",
+                          image: "https://cdn.pixabay.com/photo/2025/10/16/08/14/parrot-9897724_1280.jpg"
+                        }
+                      ]
+                    }
+                  },
+                  bulkBase64: {
+                    value: {
+                      data: [
+                        {
+                          country: "+55",
+                          dd: "86",
+                          number: "994873708",
+                          message: "Olá tudo bem?",
+                          sendAt: "2025-11-15 09:18:35",
+                          image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34..."
+                        },
+                        {
+                          country: "+55",
+                          dd: "86",
+                          number: "994873708",
+                          message: "Olá tudo bem?",
+                          sendAt: "2025-11-15 09:18:35",
+                          image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34..."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
           },
           responses: {
             200: { description: "WhatsApp bulk enfileirado" },
@@ -163,7 +263,22 @@ server.register(swagger, {
           summary: "Enviar e-mail",
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/EmailBody" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EmailBody" },
+                examples: {
+                  default: {
+                    value: {
+                      email_to: "user@example.com",
+                      email_title: "Bem-vindo à nossa plataforma!",
+                      email_header_title: "<div style=\"padding:20px; text-align:center;\"><h2>Inscrição 360</h2></div>",
+                      email_content: "<div style=\"padding:20px;\"><p>Olá, este é um e-mail de teste com dados fictícios.</p></div>",
+                      email_footer_content: "<div style=\"padding:10px; font-size:12px; color:#666;\">© 2025 Empresa Exemplo. Todos os direitos reservados.</div>"
+                    }
+                  }
+                }
+              }
+            },
           },
           responses: {
             200: { description: "E-mail enfileirado" },
