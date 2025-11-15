@@ -524,7 +524,14 @@ docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
   - Atualização de status: `update where: { id }` (`src/queues/whatsappQueueBulk.js:93–102` e `110–119`).
 - WhatsApp (controller):
   - Único: reprograma `sendAt` passado para 2–5s (`src/controllers/whatsappController.js:36–39`) e aplica delay padrão de 0.5–1.5s (`src/controllers/whatsappController.js:69–72`).
-  - Bulk: distribui itens com delay 1–3s (`src/controllers/whatsappBulkController.js:53–56`), espaça cada item em 10s (`src/controllers/whatsappBulkController.js:221`) e adiciona 10s entre lotes (`src/controllers/whatsappBulkController.js:229`).
+ - Bulk: distribui itens com delay 1–3s (`src/controllers/whatsappBulkController.js:53–56`), espaça cada item em 10s (`src/controllers/whatsappBulkController.js:221`) e adiciona 10s entre lotes (`src/controllers/whatsappBulkController.js:229`).
+
+### Regras de delay e antibloqueio
+- WhatsApp: intervalo mínimo de 10s por `customer_id` aplicado no worker.
+- `sendAt` no passado: reprogramado automaticamente para segundos à frente.
+- Bulk: distribuição com pequenos delays (1–3s) e 10s mínimos garantidos por cliente.
+- HTTP: limite de 1000 requisições/minuto por IP via `@fastify/rate-limit`.
+- Objetivo: reduzir risco de bloqueio na Z-API mantendo cadência estável.
 
 ### Bull Board
 - Painel para monitorar filas em tempo real.
@@ -534,3 +541,7 @@ docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
 ### Swagger
 - Documentação interativa disponível em `http://localhost:3333/docs`.
 - Inclui rotas, schemas de entrada, respostas e autenticação por Bearer Token.
+ - Uso:
+   - Clique em "Authorize" e informe `Bearer <TOKEN>` (admin ou cliente).
+   - Use "Try it out" para enviar exemplos com dados fictícios.
+   - Rotas protegidas exigem token de cliente; `/webhook-received` não exige.
