@@ -24,6 +24,16 @@ Cada cliente possui configurações próprias (SMTP, NVoIP, Z-API) e autentica p
 - Requisições são validadas com Zod (schemas em `src/schemas/zod-schemas.js`).
 - Envio é feito de forma assíncrona via filas (Bull + Redis).
 
+### Como a API funciona
+- Rotas HTTP recebem os pedidos e validam o corpo com Zod.
+- Cada envio cria um registro de notificação em banco (Prisma) e agenda um job em uma fila Bull.
+- Workers das filas processam os jobs chamando provedores externos:
+  - WhatsApp via Z-API
+  - SMS via NVoIP
+  - E-mail via SMTP
+- Regras anti-bloqueio: os workers impõem intervalos mínimos entre envios para o mesmo cliente.
+- Status de cada envio é persistido e pode ser consultado (sucesso, falha, tentativa, resposta do provedor).
+
 ---
 
 ## Instalação e execução
@@ -135,18 +145,49 @@ Validação: `country` no formato `+NN`, `dd` com 2 dígitos, `number` 8 ou 9 d�
 
 POST /whatsapp
 
-Payload (exemplo):
+Payloads (exemplos):
+
+Enviar texto:
 
 ```json
 {
   "country": "+55",
   "dd": "86",
-  "number": "994876677",
+  "number": "999000111",
   "message": "Olá!"
 }
 ```
 
-Validação: mesma validação de phone do SMS. Campo `sendAt` (opcional) aceita formato `YYYY-MM-DD HH:mm:ss`.
+Enviar imagem via URL pública (caption = message):
+
+```json
+{
+  "country": "+55",
+  "dd": "86",
+  "number": "999000111",
+  "message": "Logo (exemplo)",
+  "image": "https://cdn.example.com/assets/logo.png"
+}
+```
+
+Enviar imagem via Base64 (caption = message):
+
+```json
+{
+  "country": "+55",
+  "dd": "86",
+  "number": "999000111",
+  "message": "Imagem base64 (exemplo)",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg..."
+}
+```
+
+Regras:
+- Quando `image` está presente, a API envia para Z-API `/send-image` com payload `{ phone, image, caption, viewOnce: false }`.
+- `image` aceita URL pública ou Base64 (com ou sem prefixo `data:*;base64,`).
+- `message` vira `caption` integral (sem limite). 
+- Campo `sendAt` (opcional) aceita formato `YYYY-MM-DD HH:mm:ss`.
+- Agendamento: se `sendAt` estiver no passado, o envio é reprogramado para 2–5s à frente.
 
 5) Enviar WhatsApp (bulk)
 
@@ -154,7 +195,11 @@ POST /whatsapp-bulk
 
 Payload: `{ "data": [ /* array de objetos como /whatsapp */ ] }`
 
-Limite: máximo 500 mensagens por requisição (validado pelo schema `whatsappBulkSchema`).
+Observações:
+- Cada item pode ser texto ou imagem (mesmas regras do envio único).
+- Limite: máximo 500 mensagens por requisição (validado pelo schema `whatsappBulkSchema`).
+- A aplicação garante intervalo mínimo de 10s entre mensagens do mesmo `customer_id` para evitar bloqueios.
+- Agendamento: o controller distribui itens com pequenos delays (1–3s), mas o worker aplica o intervalo de 10s por cliente.
 
 6) Webhook Z-API (recebimento)
 
@@ -213,10 +258,10 @@ templates/               # Templates de e-mail
 
 ## Testes rápidos com cURL
 
-Observação: o server usa a variável `PORT` (padrão no `env.js` é 3333). Os exemplos abaixo usam `http://localhost:3000` pois seguem o formato que você enviou — ajuste a porta conforme seu `.env`.
+Observação: o server usa a variável `PORT` (padrão no `src/env.js` é 3333). Os exemplos abaixo usam `http://localhost:3333`.
 
 ### Send SMS
-POST http://localhost:3000/sms
+POST http://localhost:3333/sms
 Content-Type: application/json
 Authorization: Bearer <CUSTOMER_TOKEN>
 
@@ -229,8 +274,8 @@ Authorization: Bearer <CUSTOMER_TOKEN>
 }
 ```
 
-### Send Whatsapp
-POST http://localhost:3000/whatsapp
+### Send Whatsapp (texto)
+POST http://localhost:3333/whatsapp
 Content-Type: application/json
 Authorization: Bearer <CUSTOMER_TOKEN>
 
@@ -242,10 +287,40 @@ Authorization: Bearer <CUSTOMER_TOKEN>
   "message": "Olá! Mensagem de teste (dados fictícios)",
   "sendAt": "2025-11-07 10:25:23"
 }
+
+### Send Whatsapp (imagem por URL)
+POST http://localhost:3333/whatsapp
+Content-Type: application/json
+Authorization: Bearer <CUSTOMER_TOKEN>
+
+```json
+{
+  "country": "+55",
+  "dd": "99",
+  "number": "999000111",
+  "message": "Logo (exemplo)",
+  "image": "https://cdn.example.com/assets/logo.png"
+}
+```
+
+### Send Whatsapp (imagem Base64)
+POST http://localhost:3333/whatsapp
+Content-Type: application/json
+Authorization: Bearer <CUSTOMER_TOKEN>
+
+```json
+{
+  "country": "+55",
+  "dd": "99",
+  "number": "999000111",
+  "message": "Imagem base64 (exemplo)",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg..."
+}
+```
 ```
 
 ### Send Email
-POST http://localhost:3000/email
+POST http://localhost:3333/email
 Content-Type: application/json
 Authorization: Bearer <CUSTOMER_TOKEN>
 
@@ -260,7 +335,7 @@ Authorization: Bearer <CUSTOMER_TOKEN>
 ```
 
 ### Send Whatsapp Bulk
-POST http://localhost:3000/whatsapp-bulk
+POST http://localhost:3333/whatsapp-bulk
 Content-Type: application/json
 Authorization: Bearer <CUSTOMER_TOKEN>
 
@@ -282,6 +357,34 @@ Authorization: Bearer <CUSTOMER_TOKEN>
       "sendAt": "2025-11-07 10:40:25"
     }
     /* ... até 500 objetos */
+  ]
+}
+```
+
+### Send Whatsapp Bulk (com imagens)
+POST http://localhost:3333/whatsapp-bulk
+Content-Type: application/json
+Authorization: Bearer <CUSTOMER_TOKEN>
+
+```json
+{
+  "data": [
+    {
+      "country": "+55",
+      "dd": "99",
+      "number": "999000111",
+      "message": "Logo (lote)",
+      "image": "https://cdn.example.com/assets/logo.png",
+      "sendAt": "2025-11-07 10:40:23"
+    },
+    {
+      "country": "+55",
+      "dd": "99",
+      "number": "999000112",
+      "message": "Imagem base64 (lote)",
+      "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
+      "sendAt": "2025-11-07 10:50:23"
+    }
   ]
 }
 ```
@@ -344,7 +447,7 @@ URL_NOTIFICATION=http://example.local/webhook
 docker run -d --name nc-app --network notification_net --env-file .env -p 3333:3333 notification_center:local
 ```
 
-- Rodando migrações (opcional):
+- Rodando migrações (após subir DB/Redis):
 
 Se você prefere rodar as migrations dentro do container após subir o DB, execute:
 
@@ -404,6 +507,26 @@ docker compose exec app sh -c "npx prisma generate && npx prisma migrate deploy"
 3) Observações úteis
 
 - Porta: por padrão a aplicação usa `PORT=3333` (veja `src/env.js`). No `docker run`/`docker compose` mapeie a porta externa que preferir.
-- Rede: no exemplo `docker run` usamos `--network notification_net` para que `DATABASE_URL` e `REDIS_HOST` apontem para os nomes dos containers (`nc-mysql`, `nc-redis`). No `docker-compose` os serviços conversam entre si automaticamente.
-- Bull Board (dashboard): após subir a app, o painel do Bull Board estará disponível em `http://localhost:3333/ui` (ou na porta configurada).
+- Rede: use `--network` para permitir que a app resolva `nc-mysql` e `nc-redis` pela rede Docker (ou ajuste `DATABASE_URL` e `REDIS_HOST` para IPs). Em compose, os serviços compartilham a rede por padrão.
+- Bull Board (dashboard): disponível em `http://localhost:3333/ui` (ou na porta configurada).
 - Persistência: monte volumes para MySQL e, se desejar, para logs/arquivos gerados pela aplicação.
+- Ambiente: certifique-se de fornecer todas as variáveis exigidas pelo `src/env.js` (Zod valida e impede inicialização se faltar).
+### Detalhes técnicos das filas
+- WhatsApp (único):
+  - Worker: `src/queues/whatsappQueue.js`
+  - Intervalo mínimo por cliente: 10s (`src/queues/whatsappQueue.js:38` cria `ensureCustomerDelay`, chamado em `src/queues/whatsappQueue.js:77`).
+  - Payload em `/send-image`: `{ phone, image, caption, viewOnce: false }`.
+  - Atualização de status: `update where: { id }` (`src/queues/whatsappQueue.js:58–66`).
+- WhatsApp (bulk):
+  - Worker: `src/queues/whatsappQueueBulk.js`
+  - Intervalo mínimo por cliente: adaptativo com mínimo de 10s (`src/queues/whatsappQueueBulk.js:47–51`), chamado em `src/queues/whatsappQueueBulk.js:69`.
+  - Payload em `/send-image`: `{ phone, image, caption, viewOnce: false }`.
+  - Atualização de status: `update where: { id }` (`src/queues/whatsappQueueBulk.js:93–102` e `110–119`).
+- WhatsApp (controller):
+  - Único: reprograma `sendAt` passado para 2–5s (`src/controllers/whatsappController.js:36–39`) e aplica delay padrão de 0.5–1.5s (`src/controllers/whatsappController.js:69–72`).
+  - Bulk: distribui itens com delay 1–3s (`src/controllers/whatsappBulkController.js:53–56`), espaça cada item em 10s (`src/controllers/whatsappBulkController.js:221`) e adiciona 10s entre lotes (`src/controllers/whatsappBulkController.js:229`).
+
+### Bull Board
+- Painel para monitorar filas em tempo real.
+- Disponível em `http://localhost:3333/ui`.
+- Mostra jobs em estados waiting, active, failed e completed, além de logs.
