@@ -30,6 +30,12 @@ const { createBullBoard } = require('@bull-board/api')
 const { BullAdapter } = require('@bull-board/api/bullAdapter')
 const { FastifyAdapter } = require('@bull-board/fastify');
 
+// --- Auth Plugins
+const cookie = require("@fastify/cookie");
+const formbody = require("@fastify/formbody");
+const jwt = require("@fastify/jwt");
+const authRoutes = require("./routes/auth");
+
 // --- Queue instances (Bull)
 // Each queue file exports a Bull queue instance used by workers/controllers
 const emailQueue = require("./queues/emailQueue");
@@ -39,6 +45,31 @@ const whatsappQueueBulk = require("./queues/whatsappQueueBulk");
 
 // Fastify server with logging enabled
 const server = fastify({ logger: true });
+
+// --- Auth Registration
+server.register(cookie, {
+  secret: "super-secret-key-change-in-prod-1234567890",
+});
+server.register(formbody);
+server.register(jwt, {
+  secret: "super-secret-jwt-key-change-in-prod-0987654321",
+  cookie: {
+    cookieName: "token",
+    signed: false,
+  },
+});
+
+server.register(authRoutes);
+
+server.addHook("onRequest", async (request, reply) => {
+  if (request.url.startsWith("/ui")) {
+    try {
+      await request.jwtVerify({ onlyCookie: true });
+    } catch (err) {
+      return reply.redirect("/login");
+    }
+  }
+});
 
 server.register(swagger, {
   openapi: {
