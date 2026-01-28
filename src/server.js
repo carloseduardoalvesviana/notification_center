@@ -19,6 +19,7 @@ const emailRoutes = require("./routes/email");
 const customersRoutes = require("./routes/customers");
 const smsRoutes = require("./routes/sms");
 const whatsappRoutes = require("./routes/whatsapp");
+const evolutionRoutes = require("./routes/evolution");
 const zApiWebHook = require("./routes/z-api-web-hook");
 
 // Environment variables validated in src/env.js (Zod)
@@ -42,6 +43,7 @@ const emailQueue = require("./queues/emailQueue");
 const smsQueue = require("./queues/smsQueue");
 const whatsappQueue = require("./queues/whatsappQueue");
 const whatsappQueueBulk = require("./queues/whatsappQueueBulk");
+const evolutionWhatsappQueue = require("./queues/evolutionWhatsappQueue");
 
 // Fastify server with logging enabled
 const server = fastify({ logger: true });
@@ -359,7 +361,8 @@ createBullBoard({
     new BullAdapter(emailQueue),
     new BullAdapter(smsQueue),
     new BullAdapter(whatsappQueue),
-    new BullAdapter(whatsappQueueBulk)
+    new BullAdapter(whatsappQueueBulk),
+    new BullAdapter(evolutionWhatsappQueue)
   ],
   serverAdapter,
 });
@@ -399,6 +402,7 @@ server.register(customersRoutes); // routes: POST /customers
 server.register(emailRoutes);     // routes: POST /email
 server.register(smsRoutes);       // routes: POST /sms
 server.register(whatsappRoutes);  // routes: POST /whatsapp, POST /whatsapp-bulk
+server.register(evolutionRoutes); // routes: POST /evolution/whatsapp
 server.register(zApiWebHook);     // routes: POST /webhook-received
 
 /* ----------------------------- Inicialização ----------------------------- */

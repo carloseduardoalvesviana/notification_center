@@ -71,10 +71,16 @@ const customerSchema = z.object({
     name: z.string().nonempty(),
 });
 
+const evolutionBodySchema = z.object({
+    number: z.string().nonempty("Phone number is required"),
+    message: z.string().nonempty("Message is required"),
+});
+
 module.exports = {
     whatsappBodySchema,
     whatsappBulkSchema,
     smsBodySchema,
     emailSchema,
-    customerSchema
+    customerSchema,
+    evolutionBodySchema
 };

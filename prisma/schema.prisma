@@ -124,3 +124,16 @@ model WhatsappOptionsForCustomers {
 
   @@map("whatsapp_options_for_customers")
 }
+
+model WhatsappEvolutionOptionsForCustomer {
+  id          String @id @default(uuid())
+  customer_id String @db.VarChar(36)
+
+  token String @db.VarChar(255)
+  url   String @db.VarChar(255)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("whatsapp_evolution_options_for_customers")
+}
